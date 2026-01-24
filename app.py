@@ -1,50 +1,43 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# --- 1. ฟังก์ชันระบบ Login ---
 def check_password():
-    """คืนค่า True ถ้ารหัสผ่านถูกต้อง"""
-    def password_entered():
-        # ตรวจสอบรหัสผ่านจาก Secrets ที่เราตั้งไว้
-        if st.session_state["password"] == st.secrets["credentials"]["password"]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # ลบรหัสออกจาก session เพื่อความปลอดภัย
-        else:
-            st.session_state["password_correct"] = False
+    """ฟังก์ชันตรวจสอบ Username และ Password"""
+    def login_form():
+        with st.form("login"):
+            st.subheader("🔐 เข้าสู่ระบบเพื่อดูข้อมูล")
+            user = st.text_input("Username")
+            pw = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Login")
+            
+            if submit:
+                # ตรวจสอบกับค่าที่เก็บไว้ใน Secrets
+                if user in st.secrets["users"] and pw == st.secrets["users"][user]:
+                    st.session_state["authenticated"] = True
+                    st.session_state["username"] = user
+                    st.rerun()
+                else:
+                    st.error("❌ Username หรือ Password ไม่ถูกต้อง")
 
-    if "password_correct" not in st.session_state:
-        # หน้าจอ Login
-        st.title("🔐 กรุณาเข้าสู่ระบบ")
-        st.text_input("Password", type="password", on_change=password_entered, key="password")
-        if "password_correct" in st.session_state:
-            st.error("😕 รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่")
+    if not st.session_state.get("authenticated", False):
+        login_form()
         return False
     return True
 
-# --- 2. ส่วนแสดงเนื้อหา (จะทำงานเมื่อ Login ผ่านแล้ว) ---
+# --- เริ่มการทำงานของแอป ---
 if check_password():
-    st.set_page_config(page_title="ระบบจัดการข้อมูลภายใน", layout="wide")
-    st.title("📊 ข้อมูลจากระบบหลังบ้าน (Google Sheets)")
-    
-    # ปุ่ม Logout
+    # แสดงชื่อผู้ใช้ที่มุมบน
+    st.sidebar.write(f"สวัสดีคุณ: **{st.session_state['username']}**")
     if st.sidebar.button("Log out"):
-        del st.session_state["password_correct"]
+        st.session_state["authenticated"] = False
         st.rerun()
 
-    # เชื่อมต่อ Google Sheets (เหมือนเดิม)
+    st.title("📊 ระบบจัดการข้อมูล (Google Sheets)")
+
+    # ส่วนเชื่อมต่อ Google Sheets
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(ttl="1m") # ตั้งให้ดึงใหม่ทุก 1 นาที
-
-        st.success("เชื่อมต่อข้อมูลสำเร็จ!")
+        df = conn.read(ttl="1m")
         st.dataframe(df, use_container_width=True)
-        
-        # เพิ่มตัวกรองข้อมูล
-        search = st.text_input("🔍 ค้นหาข้อมูล...")
-        if search:
-            filtered_df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
-            st.write(f"ผลการค้นหา: {len(filtered_df)} รายการ")
-            st.table(filtered_df)
-            
     except Exception as e:
-        st.error(f"ไม่สามารถดึงข้อมูลได้: {e}")
+        st.error(f"เกิดข้อผิดพลาดในการดึงข้อมูล: {e}")
