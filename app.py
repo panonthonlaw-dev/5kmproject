@@ -2,127 +2,133 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# --- การตั้งค่าหน้าเว็บ ---
-st.set_page_config(page_title="Top 5 Leaderboard", layout="centered")
+# --- 1. การตั้งค่าหน้าเว็บ ---
+st.set_page_config(page_title="Game Leaderboard", page_icon="🏆", layout="centered")
 
-# --- Custom CSS สำหรับตกแต่งการ์ด (Minimal & Modern) ---
+# --- 2. Custom CSS: เน้นความกะทัดรัด (Minimal & Compact) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
-    html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; }
+    html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; background-color: #f8f9fa; }
 
-    /* ตกแต่งช่อง (Card) ของแต่ละคน */
-    .user-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 15px;
-        margin-bottom: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    /* การ์ดผู้เล่นแบบเล็ก (Compact Card) */
+    .player-card {
+        background: white;
+        padding: 10px 20px;
+        border-radius: 12px;
+        margin-bottom: 8px;
         display: flex;
         align-items: center;
-        border: 1px solid #f0f0f0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        border: 1px solid #eee;
     }
-    /* วงกลมเลขอันดับ */
-    .rank-circle {
-        background-color: #2e3131;
-        color: white;
-        width: 40px;
-        height: 40px;
+
+    /* วงกลมอันดับแบบเล็กลง */
+    .rank-badge {
+        width: 35px;
+        height: 35px;
         border-radius: 50%;
         display: flex;
         justify-content: center;
         align-items: center;
+        font-size: 1em;
         font-weight: bold;
-        margin-right: 20px;
-        font-size: 1.2em;
+        margin-right: 15px;
+        flex-shrink: 0;
+        background: #f1f3f5;
+        color: #495057;
     }
-    /* สีพิเศษสำหรับอันดับ 1-3 */
-    .rank-1 { background-color: #FFD700; color: #000; } /* ทอง */
-    .rank-2 { background-color: #C0C0C0; color: #000; } /* เงิน */
-    .rank-3 { background-color: #CD7F32; color: #fff; } /* ทองแดง */
+    .rank-1 { background: #FFD700; color: #000; }
+    .rank-2 { background: #C0C0C0; color: #000; }
+    .rank-3 { background: #CD7F32; color: #fff; }
 
-    .user-info { flex-grow: 1; }
-    .user-name { font-size: 1.1em; font-weight: 600; color: #2e3131; }
-    .user-stats { color: #6c757d; font-size: 0.9em; margin-top: 5px; }
-    .stat-box { display: inline-block; margin-right: 15px; }
+    /* ปรับขนาดตัวอักษรให้เล็กลง */
+    .info-container { flex-grow: 1; display: flex; align-items: center; justify-content: space-between; }
+    .player-name { font-size: 1em; font-weight: 600; color: #333; min-width: 150px; }
+    .stats-group { display: flex; gap: 15px; }
     
-    .coin-icon { font-size: 1.2em; filter: grayscale(100%); opacity: 0.5; } /* เตรียมไว้ใส่รูปภายหลัง */
+    .stat-item { 
+        font-size: 0.85em; 
+        color: #666; 
+        background: #f8f9fa; 
+        padding: 2px 10px; 
+        border-radius: 20px;
+        border: 1px solid #f0f0f0;
+    }
+    .stat-label { font-weight: 600; color: #444; margin-right: 3px; }
+    
+    .coin-mini { font-size: 1.2em; margin-left: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ระบบ Login (Username/Password) ---
+# --- 3. ระบบ Login ---
 def check_password():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
     if not st.session_state["authenticated"]:
-        _, col_mid, _ = st.columns([1, 2, 1])
-        with col_mid:
-            with st.form("Login"):
-                st.markdown("<h3 style='text-align: center;'>🔐 ระบบเช็คคะแนน</h3>", unsafe_allow_html=True)
-                user = st.text_input("Username")
-                pw = st.text_input("Password", type="password")
-                if st.form_submit_button("เข้าสู่ระบบ"):
-                    if user in st.secrets["users"] and pw == st.secrets["users"][user]:
+        _, col, _ = st.columns([1, 2, 1])
+        with col:
+            with st.form("login"):
+                st.markdown("<h3 style='text-align: center;'>🎮 เข้าสู่ระบบ</h3>", unsafe_allow_html=True)
+                u = st.text_input("Username")
+                p = st.text_input("Password", type="password")
+                if st.form_submit_button("Log In"):
+                    if u in st.secrets["users"] and p == st.secrets["users"][u]:
                         st.session_state["authenticated"] = True
-                        st.session_state["username"] = user
+                        st.session_state["username"] = u
                         st.rerun()
-                    else:
-                        st.error("รหัสผ่านไม่ถูกต้อง")
+                    else: st.error("ข้อมูลไม่ถูกต้อง")
         return False
     return True
 
 if check_password():
-    st.title("🏆 Leaderboard")
-    st.write(f"ผู้ใช้งาน: {st.session_state['username']}")
-    st.divider()
-
+    st.markdown("<h2 style='text-align: center;'>🏆 กระดานผู้นำทุกคน</h2>", unsafe_allow_html=True)
+    
     try:
-        # 1. ดึงข้อมูลจาก Google Sheets
+        # 1. เชื่อมต่อข้อมูล
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl="1m")
 
         if df is not None:
-            # 2. จัดการข้อมูล (A=ชื่อ, AL=คะแนนรวม, AM=EXP, AN=เหรียญ)
-            df_data = df.iloc[:, [0, 37, 38, 39]].copy()
-            df_data.columns = ['Name', 'Score', 'EXP', 'Coin']
+            # 2. จัดเตรียมข้อมูล (A, AL, AM, AN)
+            data = df.iloc[:, [0, 37, 38, 39]].copy()
+            data.columns = ['Name', 'Score', 'EXP', 'Coin']
             
-            # แปลงเป็นตัวเลขและเรียงลำดับ
-            df_data['Score'] = pd.to_numeric(df_data['Score'], errors='coerce')
-            df_sorted = df_data.sort_values(by='Score', ascending=False).dropna(subset=['Score']).reset_index(drop=True)
+            # แปลงคะแนนเป็นตัวเลข
+            data['Score'] = pd.to_numeric(data['Score'], errors='coerce')
+            df_clean = data.dropna(subset=['Score']).copy()
 
-            # 3. แสดงผลหน้าละ 5 ช่อง (Pagination)
-            items_per_page = 5
-            total_pages = (len(df_sorted) // items_per_page) + (1 if len(df_sorted) % items_per_page > 0 else 0)
+            # 3. คำนวณอันดับแบบอันดับเท่ากันได้ (Dense Rank)
+            # method='min' จะทำให้ถ้าที่ 1 มีสองคน คนถัดไปจะเป็นที่ 3
+            # method='dense' จะทำให้ถ้าที่ 1 มีสองคน คนถัดไปจะเป็นที่ 2 (เลือกตามความเหมาะสม)
+            df_clean['Rank'] = df_clean['Score'].rank(method='min', ascending=False).astype(int)
             
-            page = st.sidebar.number_input("หน้า", min_value=1, max_value=total_pages, step=1)
-            start_idx = (page - 1) * items_per_page
-            end_idx = start_idx + items_per_page
-            
-            # วนลูปสร้าง 5 ช่อง
-            for i, row in df_sorted.iloc[start_idx:end_idx].iterrows():
-                rank = i + 1
-                # กำหนดคลาสสีตามอันดับ
-                rank_class = f"rank-{rank}" if rank <= 3 else ""
+            # เรียงลำดับตามอันดับ
+            df_sorted = df_clean.sort_values(by='Rank')
+
+            # 4. แสดงผลทุกคน (ไม่มีการแบ่งหน้า)
+            for _, row in df_sorted.iterrows():
+                rank = row['Rank']
+                # กำหนดสีอันดับ 1-3
+                rank_style = f"rank-{rank}" if rank <= 3 else ""
                 
-                # สร้างการ์ดด้วย HTML
                 st.markdown(f"""
-                    <div class="user-card">
-                        <div class="rank-circle {rank_class}">{rank}</div>
-                        <div class="user-info">
-                            <div class="user-name">{row['Name']}</div>
-                            <div class="user-stats">
-                                <span class="stat-box">📊 <b>คะแนนรวม:</b> {row['Score']:.2f}</span>
-                                <span class="stat-box">⚡ <b>EXP:</b> {row['EXP']}</span>
-                                <span class="stat-box">🪙 <b>เหรียญ:</b> {row['Coin']}</span>
+                    <div class="player-card">
+                        <div class="rank-badge {rank_style}">{rank}</div>
+                        <div class="info-container">
+                            <div class="player-name">{row['Name']}</div>
+                            <div class="stats-group">
+                                <div class="stat-item"><span class="stat-label">คะแนนรวม:</span> {row['Score']:.0f}</div>
+                                <div class="stat-item"><span class="stat-label">EXP:</span> {row['EXP']}</div>
+                                <div class="stat-item"><span class="stat-label">🪙:</span> {row['Coin']}</div>
                             </div>
                         </div>
-                        <div class="coin-icon">💰</div>
                     </div>
                 """, unsafe_allow_html=True)
 
     except Exception as e:
-        st.error("ไม่สามารถเชื่อมต่อข้อมูลได้ กรุณาตรวจสอบตำแหน่งคอลัมน์")
-
-    if st.sidebar.button("ออกจากระบบ"):
+        st.error("ไม่สามารถโหลดข้อมูลได้")
+        
+    if st.sidebar.button("Log out"):
         st.session_state["authenticated"] = False
         st.rerun()
