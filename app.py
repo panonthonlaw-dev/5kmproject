@@ -84,7 +84,7 @@ if check_password():
             st.query_params.clear()
             st.rerun()
 
-    st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบเทพพัฒวิทย์</h2>", unsafe_allow_html=True)
 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
