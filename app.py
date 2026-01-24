@@ -5,59 +5,66 @@ from streamlit_gsheets import GSheetsConnection
 # --- 1. การตั้งค่าหน้าเว็บ (Wide Layout) ---
 st.set_page_config(page_title="Gaming Leaderboard", page_icon="👑", layout="wide")
 
-# --- 2. Custom CSS: ปรับโฉมเป็นมงกุฎและย่อขนาดช่องอันดับ ---
+# --- 2. Custom CSS: ปรับโฉมมงกุฎและย่อส่วนหัวให้เล็กที่สุด ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
     html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; background-color: #f8f9fa; }
 
-    /* การ์ดผู้เล่นแบบเล็กพิเศษ */
+    /* การ์ดผู้เล่นแบบกะทัดรัดพิเศษ */
     .compact-card {
         background: white;
-        padding: 10px;
+        padding: 8px;
         border-radius: 12px;
         margin-bottom: 15px;
         text-align: center;
         box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         border: 1px solid #eee;
-        height: 160px;
+        height: 155px;
         position: relative;
     }
 
-    /* ส่วนมงกุฎและอันดับ (จิ๋ว) */
-    .rank-section {
-        height: 40px;
+    /* ส่วนหัวอันดับ (จิ๋วมาก) */
+    .rank-header {
+        height: 35px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        margin-bottom: 5px;
+        margin-bottom: 3px;
     }
-    .crown {
-        font-size: 24px;
+    .crown-icon {
+        font-size: 20px;
         line-height: 1;
-        margin-bottom: -5px;
+        margin-bottom: -4px;
     }
-    .rank-number {
-        font-size: 10px;
+    .rank-num-label {
+        font-size: 9px;
         font-weight: bold;
-        background: rgba(0,0,0,0.1);
-        padding: 1px 5px;
-        border-radius: 10px;
-        color: #444;
+        background: #f0f0f0;
+        padding: 0px 6px;
+        border-radius: 8px;
+        color: #666;
     }
     
-    /* สีมงกุฎ */
-    .crown-1 { color: #FFD700; text-shadow: 0 0 5px rgba(255,215,0,0.5); } /* ทอง */
-    .crown-2 { color: #C0C0C0; text-shadow: 0 0 5px rgba(192,192,192,0.5); } /* เงิน */
-    .crown-3 { color: #CD7F32; text-shadow: 0 0 5px rgba(205,127,50,0.5); } /* ทองแดง */
-    .crown-normal { color: #dee2e6; font-size: 18px; } /* อันดับทั่วไป */
+    /* สีมงกุฎตามอันดับ */
+    .c-1 { color: #FFD700; } /* ทอง */
+    .c-2 { color: #C0C0C0; } /* เงิน */
+    .c-3 { color: #CD7F32; } /* ทองแดง */
+    .c-normal { color: #e0e0e0; font-size: 16px; }
 
-    /* รายละเอียดข้อความ */
-    .name-text { font-size: 0.9em; font-weight: 600; color: #333; height: 25px; overflow: hidden; margin-bottom: 5px; }
-    .score-label { color: #888; font-size: 0.7em; margin-bottom: 0px; text-transform: uppercase; }
-    .score-value { font-size: 1.2em; font-weight: 800; color: #2e3131; margin-bottom: 5px; }
-    .exp-coin-text { font-size: 0.7em; color: #6c757d; border-top: 1px solid #f0f0f0; padding-top: 5px; }
+    /* การจัดการข้อความภายใน */
+    .player-name-text { font-size: 0.9em; font-weight: 600; color: #333; height: 22px; overflow: hidden; margin-bottom: 2px; }
+    .score-title { color: #999; font-size: 0.65em; margin-bottom: -2px; }
+    .score-val { font-size: 1.25em; font-weight: 800; color: #2e3131; margin-bottom: 4px; }
+    .meta-data { 
+        font-size: 0.7em; 
+        color: #6c757d; 
+        border-top: 1px solid #f8f9fa; 
+        padding-top: 4px;
+        display: flex;
+        justify-content: space-around;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -85,52 +92,56 @@ if check_password():
     st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h2>", unsafe_allow_html=True)
 
     try:
-        # 1. ดึงข้อมูลจาก Google Sheets
+        # 1. เชื่อมต่อข้อมูล
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(ttl="1m")
 
         if df is not None:
-            # 2. จัดเตรียมข้อมูล (A, AL, AM, AN)
+            # 2. เตรียมข้อมูล (A=ชื่อ, AL=คะแนนรวม, AM=EXP, AN=ระดับเหรียญ)
+            # ดึงลำดับคอลัมน์ A(0), AL(37), AM(38), AN(39)
             data = df.iloc[:, [0, 37, 38, 39]].copy()
-            data.columns = ['Name', 'Score', 'EXP', 'Coin']
+            data.columns = ['Name', 'Score', 'EXP', 'MedalLevel']
             
             data['Score'] = pd.to_numeric(data['Score'], errors='coerce')
             df_clean = data.dropna(subset=['Score']).copy()
 
-            # ใช้ Dense Ranking (1, 1, 2, 2, 3...)
+            # ใช้ Dense Ranking เพื่อให้อันดับไม่ข้าม (1, 1, 2, 3...)
             df_clean['Rank'] = df_clean['Score'].rank(method='dense', ascending=False).astype(int)
             df_sorted = df_clean.sort_values(by='Rank')
 
             # 3. แสดงผลแบบ Grid (5 ช่องต่อแถว)
-            players = df_sorted.to_dict('records')
-            for i in range(0, len(players), 5):
+            player_list = df_sorted.to_dict('records')
+            for i in range(0, len(player_list), 5):
                 cols = st.columns(5)
-                batch = players[i:i+5]
+                batch = player_list[i : i+5]
                 
                 for idx, player in enumerate(batch):
                     with cols[idx]:
                         rank = player['Rank']
                         
-                        # เลือกมงกุฎตามอันดับ
+                        # เลือกไอคอนตามอันดับ
                         if rank == 1:
-                            crown_html = f'<div class="crown crown-1">👑</div>'
+                            rank_html = f'<div class="crown-icon c-1">👑</div>'
                         elif rank == 2:
-                            crown_html = f'<div class="crown crown-2">👑</div>'
+                            rank_html = f'<div class="crown-icon c-2">👑</div>'
                         elif rank == 3:
-                            crown_html = f'<div class="crown crown-3">👑</div>'
+                            rank_html = f'<div class="crown-icon c-3">👑</div>'
                         else:
-                            crown_html = f'<div class="crown crown-normal">🎖️</div>'
+                            rank_html = f'<div class="crown-icon c-normal">🎖️</div>'
                         
                         st.markdown(f"""
                             <div class="compact-card">
-                                <div class="rank-section">
-                                    {crown_html}
-                                    <div class="rank-number"># {rank}</div>
+                                <div class="rank-header">
+                                    {rank_html}
+                                    <div class="rank-num-label"># {rank}</div>
                                 </div>
-                                <div class="name-text">{player['Name']}</div>
-                                <div class="score-label">คะแนนรวม</div>
-                                <div class="score-value">{player['Score']:.0f}</div>
-                                <div class="exp-coin-text">⚡ {player['EXP']} | 🪙 {player['Coin']}</div>
+                                <div class="player-name-text">{player['Name']}</div>
+                                <div class="score-title">คะแนนรวม</div>
+                                <div class="score-val">{player['Score']:.0f}</div>
+                                <div class="meta-data">
+                                    <span>⚡ EXP: {player['EXP']}</span>
+                                    <span>🏅 {player['MedalLevel']}</span>
+                                </div>
                             </div>
                         """, unsafe_allow_html=True)
 
