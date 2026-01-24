@@ -89,7 +89,7 @@ def check_password():
     return True
 
 if check_password():
-    st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบคะแนน</h2>", unsafe_allow_html=True)
 
     try:
         # 1. เชื่อมต่อข้อมูล
