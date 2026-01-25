@@ -23,7 +23,7 @@ if "logged_in" not in st.session_state:
 thai_tz = pytz.timezone('Asia/Bangkok')
 st.set_page_config(page_title="Patwit System 2026", layout="wide")
 
-# CSS: Super Compact (บีบระยะบรรทัดให้ชิดกัน)
+# CSS: Super Compact (ลบพื้นที่ว่างส่วนเกินด้านล่างออก)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
@@ -43,43 +43,46 @@ st.markdown("""
     }
     
     .player-card { 
-        background: white; border-radius: 3px; padding: 4px 2px; border: 0.5px solid #ccc; 
+        background: white; border-radius: 3px; 
+        padding: 3px 1px 1px 1px; /* บีบ Padding ด้านล่างให้เหลือแค่ 1px */
+        border: 0.5px solid #ccc; 
         display: flex; flex-direction: column; 
-        gap: 0px; /* ลดช่องว่างรวมให้น้อยที่สุด */
-        min-height: 100px; /* ลดความสูงขั้นต่ำลง */
+        gap: 0px; 
+        min-height: 0; /* เปลี่ยนจาก 100px เป็น 0 เพื่อให้หดตามเนื้อหา */
         box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
     }
 
     /* บรรทัด 1: อันดับ มงกุฎ ชื่อ */
     .row-name { 
         display: flex; align-items: center; gap: 1px; font-size: 2.2vw; font-weight: 600; 
-        color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 2px;
+        color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 1px;
         white-space: nowrap; overflow: hidden;
     }
     .player-name-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 
-    /* บรรทัด 2 และ 3: คะแนน และ EXP (ปรับให้ชิดกันมากขึ้น) */
+    /* บรรทัด 2 และ 3: คะแนน และ EXP */
     .row-stat { 
         display: flex; justify-content: space-between; align-items: center; 
         font-size: 1.9vw; 
-        line-height: 1.0; /* บีบระยะห่างบรรทัด */
+        line-height: 1.0; 
         margin-bottom: 1px; 
     }
     .label-text { color: #888; font-size: 1.7vw; }
     .val-score { color: #1E88E5; font-weight: 800; font-size: 2.4vw; }
     .val-exp { color: #555; font-weight: 600; font-size: 2vw; }
 
-    /* บรรทัด 4: ฉายา (เอา margin-top: auto ออกเพื่อให้เกาะติดกับ EXP) */
+    /* บรรทัด 4: ฉายา (ชิดติดด้านล่างสุด) */
     .row-medal { 
         font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; 
         background: #fff3e0; border-radius: 2px; padding: 1px 0; 
-        margin-top: 1px; /* เปลี่ยนจาก auto เป็นค่าคงที่เพื่อความชิด */
+        margin-top: 1px; 
+        margin-bottom: 0px; /* มั่นใจว่าไม่มีช่องว่างข้างล่าง */
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
     @media (min-width: 1024px) {
         .leaderboard-grid { gap: 10px; padding: 0 20px; }
-        .player-card { padding: 10px; min-height: 150px; gap: 4px; }
+        .player-card { padding: 8px 10px 4px 10px; min-height: 0; gap: 4px; }
         .row-name { font-size: 0.95rem; }
         .row-stat { font-size: 0.85rem; margin-bottom: 4px; }
         .val-score { font-size: 1.2rem; }
@@ -146,7 +149,7 @@ if st.session_state.page == "leaderboard":
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
 
-# --- ส่วน Login และ Admin (คงเดิม) ---
+# (ส่วน Login และ Admin ยังทำงานเหมือนเดิม)
 elif st.session_state.page == "login":
     _, center_col, _ = st.columns([1, 1, 1])
     with center_col:
