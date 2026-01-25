@@ -92,7 +92,7 @@ with t_l:
 
 # --- 4. การแสดงผล ---
 if not st.session_state.logged_in:
-    st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบเทพพัฒวิทย์</h3>", unsafe_allow_html=True)
     try:
         df_v = load_data()
         ld = df_v.iloc[:, [0, 37, 38, 39]].copy()
