@@ -88,7 +88,7 @@ with t_l:
 # --- 4. การแสดงผล ---
 if not st.session_state.logged_in:
     # --- หน้า Leaderboard นักเรียน ---
-    st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบเทพพัฒวิทย์</h3>", unsafe_allow_html=True)
     try:
         df_v = load_data()
         ld = df_v.iloc[:, [0, 37, 38, 39]].copy()
@@ -106,7 +106,7 @@ if not st.session_state.logged_in:
 
 else:
     # --- หน้า Admin (บันทึก + ค้นหา + ล็อกซ้ำ) ---
-    st.markdown("### 🎯 บันทึกคะแนน (Surgical Update)")
+    st.markdown("### 🎯 บันทึกคะแนน ")
     sh = get_sh()
     df_main = load_data()
 
@@ -118,7 +118,7 @@ else:
 
         sel_name = st.selectbox(f"เลือกนักเรียน ({len(f_names)} คน)", f_names)
         days = [c for c in df_main.columns if "day" in str(c).lower()]
-        sel_day = st.selectbox("เลือกช่องกิจกรรม (Day)", days)
+        sel_day = st.selectbox("เลือกวันกิจกรรม (Day)", days)
         pts = st.number_input("คะแนนที่เพิ่ม", min_value=1, value=5, step=1)
 
         # --- ระบบตรวจสอบการบันทึกซ้ำจาก Logs ---
