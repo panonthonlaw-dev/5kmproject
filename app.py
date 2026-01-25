@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# --- 1. ป้องกันตัวแปรหาย (Session State) ---
+# --- 1. ตั้งค่าเริ่มต้นป้องกันตัวแปรหาย ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "admin_name" not in st.session_state: st.session_state.admin_name = ""
 if "show_login" not in st.session_state: st.session_state.show_login = False
@@ -21,14 +21,14 @@ st.markdown("""
     html, body { font-family: 'Sarabun', sans-serif; background-color: #f8f9fa; }
     
     .leaderboard-grid { display: grid; grid-template-columns: repeat(5, 1fr) !important; gap: 4px; }
-    .player-card { background: white; border-radius: 6px; padding: 8px 3px; text-align: center; border: 1px solid #eee; }
+    .player-card { background: white; border-radius: 6px; padding: 8px 3px; text-align: center; border: 1px solid #eee; display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
     .player-name { font-size: 2.5vw !important; font-weight: 600; line-height: 1.1; height: 5.5vw; overflow: hidden; }
     .score-num { font-size: 5vw !important; font-weight: 800; color: #1E88E5; }
     .rank-tag { font-size: 2vw; font-weight: 600; opacity: 0.6; }
     .c-1 { color: #FFD700; } .c-2 { color: #999; } .c-3 { color: #CD7F32; }
     
     @media (min-width: 1024px) {
-        .player-card { padding: 15px; }
+        .player-card { padding: 15px; min-height: 200px; }
         .player-name { font-size: 1.1rem !important; height: 45px; }
         .score-num { font-size: 2.2rem !important; }
     }
@@ -74,7 +74,6 @@ if not st.session_state.logged_in:
     st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
     try:
         df_v = load_data()
-        # ดึง Name(A), Score(AL), EXP(AM), Medal(AN)
         ld = df_v.iloc[:, [0, 37, 38, 39]].copy()
         ld.columns = ['Name', 'Score', 'EXP', 'Medal']
         ld['Score'] = pd.to_numeric(ld['Score'], errors='coerce').fillna(0).astype(int)
@@ -89,18 +88,28 @@ if not st.session_state.logged_in:
     except: st.info("กำลังโหลดข้อมูล...")
 
 else:
-    # --- หน้า Admin: บันทึกตรงจุด + เช็กซ้ำจากลำดับคอลัมน์ใหม่ ---
-    st.markdown("### 🎯 บันทึกคะแนน (Surgical Update)")
+    # --- หน้า Admin: เพิ่มระบบค้นหาชื่อเพื่อความรวดเร็ว ---
+    st.markdown("### 🎯 บันทึกคะแนนนักเรียน")
     sh = get_sh()
     df_main = load_data()
 
     with st.container(border=True):
-        sel_name = st.selectbox("เลือกนักเรียน", df_main.iloc[:, 0].dropna().tolist())
-        days = [c for c in df_main.columns if "day" in str(c).lower()]
-        sel_day = st.selectbox("เลือกช่องกิจกรรม (Day)", days)
-        pts = st.number_input("คะแนน", min_value=1, value=5, step=1)
+        # --- [NEW] ส่วนค้นหาชื่อนักเรียน ---
+        search_term = st.text_input("🔍 ค้นหาชื่อนักเรียน (พิมพ์เพื่อกรองรายชื่อ)", placeholder="พิมพ์ชื่อนักเรียนที่นี่...")
+        
+        all_names = df_main.iloc[:, 0].dropna().tolist()
+        if search_term:
+            filtered_names = [name for name in all_names if search_term.lower() in name.lower()]
+        else:
+            filtered_names = all_names
 
-        # --- ระบบเช็กซ้ำ: ตรวจสอบจาก Timestamp(A), Student(C) และ Day(E) ใน Logs ---
+        sel_name = st.selectbox(f"เลือกนักเรียน ({len(filtered_names)} คน)", filtered_names)
+        
+        days = [c for c in df_main.columns if "day" in str(c).lower()]
+        sel_day = st.selectbox("เลือกกิจกรรม (Day)", days)
+        pts = st.number_input("คะแนนที่เพิ่ม", min_value=1, value=5, step=1)
+
+        # --- ระบบตรวจสอบการบันทึกซ้ำ ---
         log_ws = sh.worksheet("Logs")
         logs_df = pd.DataFrame(log_ws.get_all_records())
         today = datetime.now().strftime("%Y-%m-%d")
@@ -108,7 +117,6 @@ else:
         is_duplicate = False
         if not logs_df.empty:
             logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
-            # เช็ก 3 เงื่อนไข: วันนี้ + ชื่อตรง + Day ตรง
             match = logs_df[(logs_df['Student'] == sel_name) & 
                             (logs_df['Day'] == sel_day) & 
                             (logs_df['DateOnly'] == today)]
@@ -123,26 +131,28 @@ else:
 
         if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True, disabled=not can_save):
             try:
-                # 1. บันทึกเจาะจงช่องเดียวที่ Sheet1 (ห้ามลบสูตร)
+                # 1. บันทึกเจาะจงช่องเดียวที่ Sheet1 (Surgical Update)
                 main_ws = sh.worksheet("Sheet1")
                 row_idx = main_ws.find(sel_name, in_column=1).row
                 col_idx = main_ws.find(sel_day, in_row=1).col
                 old_v = main_ws.cell(row_idx, col_idx).value
                 main_ws.update_cell(row_idx, col_idx, int(float(old_v or 0)) + pts)
                 
-                # 2. บันทึกลง Logs ตามลำดับ: A:Time | B:Admin | C:Student | D:Points | E:Day
+                # 2. บันทึกลง Logs ตามลำดับที่คุณครูต้องการ
+                # A:Time | B:Admin | C:Student | D:Points | E:Day
                 log_ws.append_row([
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # A: Timestamp
-                    st.session_state.admin_name,                 # B: Admin
-                    sel_name,                                   # C: Student
-                    pts,                                        # D: Points
-                    sel_day                                     # E: Day
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                    st.session_state.admin_name,                 
+                    sel_name,                                   
+                    pts,                                        
+                    sel_day                                     
                 ])
                 st.success("บันทึกสำเร็จ!")
                 st.cache_data.clear()
                 st.rerun()
-            except Exception as e: st.error(f"Error: {e}")
+            except Exception as e: st.error(f"เกิดข้อผิดพลาด: {e}")
 
+    # แสดงประวัติการบันทึก 5 รายการล่าสุดในหน้า Admin
     if not logs_df.empty:
         st.markdown("---")
         st.markdown("📜 **ประวัติการบันทึก 5 รายการล่าสุด**")
