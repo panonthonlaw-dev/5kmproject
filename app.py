@@ -75,7 +75,12 @@ if st.session_state["admin_user"] is None and st.session_state.get("show_login",
 # --- 5. ส่วนหลังบ้าน (Admin Dashboard) ---
 if st.session_state["admin_user"]:
     st.markdown(f"### 🛡️ ระบบหลังบ้าน: ลงคะแนนรายวัน (แอดมิน: {st.session_state['admin_user']})")
-    full_df, student_data = load_data()
+    
+    # ดึงข้อมูลใหม่ทุกครั้งที่โหลดส่วนนี้เพื่อป้องกันข้อมูลซ้อน
+    full_df = conn.read(worksheet="Sheet1", ttl="0s")
+    student_data = full_df.iloc[:, [0, 37, 38, 39]].copy()
+    student_data.columns = ['Name', 'Score', 'EXP', 'Medal']
+    
     log_df = load_logs()
     
     with st.expander("🎯 บันทึกคะแนนรายวัน (J-AK)", expanded=True):
@@ -87,7 +92,7 @@ if st.session_state["admin_user"]:
         with col_pts:
             pts = st.number_input("คะแนนที่ให้", min_value=1, max_value=50, value=5)
 
-        # เช็คว่าวันนี้นักเรียนคนนี้ได้คะแนน "ในช่อง Day นี้" ไปหรือยัง
+        # เช็คประวัติการให้คะแนนซ้ำ
         today_str = datetime.now().strftime("%Y-%m-%d")
         already_scored = False
         if not log_df.empty:
@@ -95,46 +100,61 @@ if st.session_state["admin_user"]:
             check = log_df[(log_df['Student'] == selected_name) & (log_df['Day'] == selected_day) & (log_df['DateOnly'] == today_str)]
             if not check.empty: already_scored = True
 
-        secret_needed = False
         if already_scored:
             st.warning(f"⚠️ {selected_name} ได้รับคะแนนของ {selected_day} ไปแล้วในวันนี้!")
             secret_code = st.text_input("ใส่รหัสลับเพื่อแก้ไขคะแนน", type="password")
-            secret_needed = True
-
+            
         if st.button("🚀 บันทึกคะแนน", use_container_width=True):
-            if secret_needed and secret_code != st.secrets["admin_secret_code"]["code"]:
-                st.error("รหัสลับไม่ถูกต้อง")
-            else:
-                # หาตำแหน่ง Row และ Column
-                row_idx = full_df[full_df.iloc[:, 0] == selected_name].index[0]
-                col_idx = day_columns[selected_day]
-                
-                # ลงคะแนนในช่อง Day ที่เลือก
-                current_day_val = full_df.iloc[row_idx, col_idx]
-                full_df.iloc[row_idx, col_idx] = (0 if pd.isna(current_day_val) else current_day_val) + pts
-                
-                # อัปเดต Google Sheets
-                conn.update(worksheet="Sheet1", data=full_df)
-                
-                # บันทึก Log
-                new_log = pd.DataFrame([{
-                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Admin": st.session_state["admin_user"],
-                    "Student": selected_name,
-                    "Day": selected_day,
-                    "Activity": "Daily Score",
-                    "Points": pts,
-                    "Status": "Edited" if already_scored else "New"
-                }])
-                updated_logs = pd.concat([log_df, new_log], ignore_index=True).drop(columns=['DateOnly'], errors='ignore')
-                conn.update(worksheet="Logs", data=updated_logs)
-                
-                st.success(f"ลงคะแนน {selected_day} ให้ {selected_name} เรียบร้อย!")
-                st.balloons()
-                st.rerun()
-
-    with st.expander("📜 ประวัติการให้คะแนน"):
-        st.dataframe(log_df.sort_values(by="Timestamp", ascending=False), use_container_width=True)
+            # ตรวจสอบรหัสลับถ้าเป็นการให้ซ้ำ
+            can_proceed = True
+            if already_scored:
+                if secret_code != st.secrets["admin_secret_code"]["code"]:
+                    st.error("รหัสลับไม่ถูกต้อง")
+                    can_proceed = False
+            
+            if can_proceed:
+                try:
+                    # 1. ค้นหาแถวของนักเรียน (หาจากชื่อในคอลัมน์แรก)
+                    # เราจะใช้ .values เพื่อความชัวร์ในการหาตำแหน่งแถว
+                    row_mask = full_df.iloc[:, 0] == selected_name
+                    row_idx = full_df.index[row_mask].tolist()[0]
+                    
+                    # 2. ค้นหาตำแหน่งคอลัมน์ (Day 05 - 30)
+                    col_idx = day_columns[selected_day]
+                    
+                    # 3. คำนวณคะแนนใหม่
+                    current_val = full_df.iloc[row_idx, col_idx]
+                    # ถ้าช่องว่างให้เป็น 0 ถ้ามีค่าเดิมให้บวกเพิ่ม
+                    new_val = (0 if pd.isna(current_val) or current_val == "" else float(current_val)) + pts
+                    
+                    # 4. อัปเดตค่าลงใน DataFrame หลัก
+                    full_df.iloc[row_idx, col_idx] = new_val
+                    
+                    # 5. ส่งข้อมูลกลับไปที่ Google Sheets (Sheet1)
+                    # ใช้คำสั่ง update โดยส่งทั้งแผ่นกลับไป
+                    conn.update(worksheet="Sheet1", data=full_df)
+                    
+                    # 6. บันทึก Log ลงแผ่นงาน Logs
+                    new_log = pd.DataFrame([{
+                        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "Admin": st.session_state["admin_user"],
+                        "Student": selected_name,
+                        "Day": selected_day,
+                        "Activity": "Daily Update",
+                        "Points": pts,
+                        "Status": "Edited" if already_scored else "New"
+                    }])
+                    updated_logs = pd.concat([log_df, new_log], ignore_index=True).drop(columns=['DateOnly'], errors='ignore')
+                    conn.update(worksheet="Logs", data=updated_logs)
+                    
+                    st.success(f"บันทึกคะแนนให้ {selected_name} ในช่อง {selected_day} สำเร็จ!")
+                    st.balloons()
+                    
+                    # ล้าง Cache เพื่อให้หน้า Leaderboard เห็นข้อมูลใหม่ทันที
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดขณะบันทึก: {e}")
 
 # --- 6. หน้า Leaderboard (Public) ---
 st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h2>", unsafe_allow_html=True)
