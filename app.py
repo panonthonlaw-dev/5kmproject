@@ -23,64 +23,63 @@ if "logged_in" not in st.session_state:
 thai_tz = pytz.timezone('Asia/Bangkok')
 st.set_page_config(page_title="Patwit System 2026", layout="wide")
 
-# CSS: ปรับปรุงการคำนวณความกว้างใหม่ทั้งหมด ป้องกันหน้าจอล้น
+# CSS: Super Compact 5-Column Grid (ป้องกันหน้าจอล้น 100%)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
     
-    /* ล้าง Padding ส่วนเกินของ Streamlit ออกให้หมด */
-    [data-testid="block-container"] { padding: 0.5rem 0.1rem !important; max-width: 100%; overflow-x: hidden; }
+    /* บีบ Padding ของ Streamlit ให้เหลือน้อยที่สุด */
+    [data-testid="block-container"] { padding: 0.3rem 0.1rem !important; max-width: 100vw !important; overflow-x: hidden !important; }
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     
-    /* ตั้งค่าพื้นฐานป้องกันการคำนวณความกว้างผิด */
     * { box-sizing: border-box; }
-    html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; overflow-x: hidden; width: 100%; }
+    html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; width: 100%; overflow-x: hidden; }
 
-    /* Grid 5 คอลัมน์แบบยืดหยุ่น */
+    /* Grid 5 คอลัมน์แบบบีบอัด */
     .leaderboard-grid { 
         display: grid; 
         grid-template-columns: repeat(5, 1fr) !important; 
-        gap: 3px; 
+        gap: 2px; 
         width: 100%;
-        margin: 0;
-        padding: 0 2px;
+        padding: 0 1px;
     }
     
     .player-card { 
-        background: white; border-radius: 4px; padding: 4px 2px; border: 1px solid #ddd; 
-        display: flex; flex-direction: column; gap: 1px; min-height: 125px; 
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%;
+        background: white; border-radius: 3px; padding: 3px 1px; border: 0.5px solid #ccc; 
+        display: flex; flex-direction: column; gap: 1px; min-height: 110px; 
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
     }
 
-    /* บรรทัด 1: อันดับ มงกุฎ ชื่อ (ขนาดฟอนต์เล็กลงเพื่อไม่ให้ดันกัน) */
+    /* บรรทัด 1: อันดับ มงกุฎ ชื่อ (บีบฟอนต์ให้เล็กสุด) */
     .row-name { 
-        display: flex; align-items: center; gap: 2px; font-size: 2.3vw; font-weight: 600; 
-        color: #333; border-bottom: 1px solid #eee; padding-bottom: 1px; margin-bottom: 2px;
-        overflow: hidden;
+        display: flex; align-items: center; gap: 1px; font-size: 2vw; font-weight: 600; 
+        color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 1px;
+        white-space: nowrap; overflow: hidden;
     }
-    .player-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .player-name-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 
-    /* บรรทัด 2 และ 3: คะแนน และ EXP (ซ้าย-ขวา) */
-    .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 2.1vw; line-height: 1.2; }
-    .label-text { color: #888; font-weight: 400; }
-    .val-score { color: #1E88E5; font-weight: 800; font-size: 2.6vw; }
-    .val-exp { color: #555; font-weight: 600; font-size: 2.2vw; }
+    /* บรรทัด 2 และ 3: คะแนน และ EXP (ซ้าย-ขวา ตัวเลขชิดขอบ) */
+    .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 1.8vw; line-height: 1.1; }
+    .label-text { color: #888; font-size: 1.6vw; }
+    .val-score { color: #1E88E5; font-weight: 800; font-size: 2.2vw; }
+    .val-exp { color: #555; font-weight: 600; font-size: 1.8vw; }
 
-    /* บรรทัด 4: ฉายา (ตัวหนังสือเล็กลงป้องกันล้นขอบ) */
+    /* บรรทัด 4: ฉายา (ตัวหนังสือจิ๋ว) */
     .row-medal { 
-        font-size: 2vw; color: #ef6c00; font-weight: 600; text-align: center; 
-        background: #fff3e0; border-radius: 3px; padding: 1px 0; margin-top: auto; 
+        font-size: 1.6vw; color: #ef6c00; font-weight: 600; text-align: center; 
+        background: #fff3e0; border-radius: 2px; padding: 1px 0; margin-top: auto; 
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
-    /* ปรับขนาดสำหรับหน้าจอใหญ่ (คอมพิวเตอร์) */
+    /* ปรับสำหรับหน้าจอคอมพิวเตอร์ (Desktop) */
     @media (min-width: 1024px) {
         .leaderboard-grid { gap: 10px; padding: 0 20px; }
-        .player-card { padding: 12px; min-height: 160px; gap: 8px; }
-        .row-name { font-size: 1rem; }
-        .row-stat { font-size: 0.9rem; }
-        .val-score { font-size: 1.3rem; }
-        .row-medal { font-size: 0.8rem; padding: 4px 0; }
+        .player-card { padding: 10px; min-height: 160px; gap: 5px; }
+        .row-name { font-size: 0.95rem; }
+        .row-stat { font-size: 0.85rem; }
+        .label-text { font-size: 0.8rem; }
+        .val-score { font-size: 1.2rem; }
+        .row-medal { font-size: 0.75rem; padding: 3px 0; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -89,8 +88,9 @@ st.markdown("""
 
 def get_daily_1800_dt():
     now = datetime.now(thai_tz)
-    today_1800 = now.replace(hour=18, minute=0, second=0, microsecond=0)
-    return today_1800 if now >= today_1800 else today_1800 - timedelta(days=1)
+    # จุดตัดเวลาคือ 18:00 ของทุกวัน
+    cutoff = now.replace(hour=18, minute=0, second=0, microsecond=0)
+    return cutoff if now >= cutoff else cutoff - timedelta(days=1)
 
 @st.cache_data(ttl=None)
 def load_leaderboard_daily(update_dt):
@@ -101,6 +101,7 @@ def load_leaderboard_daily(update_dt):
     ld['Score'] = pd.to_numeric(ld['Score'], errors='coerce').fillna(0).astype(int)
     ld['EXP'] = pd.to_numeric(ld['EXP'], errors='coerce').fillna(0).astype(int)
     ld['Rank'] = ld['Score'].rank(method='dense', ascending=False).astype(int)
+    # วันที่แสดงผลแบบไทย
     thai_date = f"{update_dt.day:02d}/{update_dt.month:02d}/{update_dt.year + 543}"
     return ld.sort_values(by=['Rank', 'Name']).to_dict('records'), thai_date
 
@@ -120,21 +121,21 @@ def get_gspread_sh():
 # --- 3. ส่วนควบคุมหน้าจอ ---
 
 if st.session_state.page == "leaderboard":
-    # ปุ่มแอดมิน (ใช้ขนาดเล็กลงเพื่อประหยัดพื้นที่มือถือ)
+    # ปุ่มแอดมินขนาดเล็ก
     if st.button("🔐 แอดมิน", key="login_btn"):
         st.session_state.page = "login"; st.rerun()
     
     update_dt = get_daily_1800_dt()
-    players, thai_update_str = load_leaderboard_weekly = load_leaderboard_daily(update_dt)
+    players, thai_update_str = load_leaderboard_daily(update_dt)
     
     st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align: center; font-size: 0.8rem; color: #888; margin-bottom:5px;'>อัปเดตรายวัน (18:00 น.): {thai_update_str}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center; font-size: 0.7rem; color: #888; margin-bottom:5px;'>ข้อมูลล่าสุด (18:00 น.): {thai_update_str}</p>", unsafe_allow_html=True)
     
+    # สร้าง Grid (เขียน HTML บรรทัดเดียวเพื่อป้องกัน Code Block)
     grid_h = '<div class="leaderboard-grid">'
     for p in players:
         icon = "👑" if p['Rank'] == 1 else "🎖️"
         medal_name = str(p['Medal']) if p['Medal'] else "-"
-        # HTML บรรทัดเดียว ป้องกัน Error
         grid_h += (
             f'<div class="player-card">'
             f'<div class="row-name"><span>#{p["Rank"]}</span><span>{icon}</span><span class="player-name-text">{p["Name"]}</span></div>'
@@ -146,11 +147,11 @@ if st.session_state.page == "leaderboard":
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
 
-# --- ส่วน Login และ Admin ---
+# --- ส่วน Login และ Admin (คงเดิม) ---
 elif st.session_state.page == "login":
     _, center_col, _ = st.columns([1, 1, 1])
     with center_col:
-        st.markdown("<h2 style='text-align: center;'>🔐 Login Admin</h2>", unsafe_allow_html=True)
+        st.markdown("<h4 style='text-align: center;'>🔐 Login Admin</h4>", unsafe_allow_html=True)
         with st.form("login_form"):
             u, p = st.text_input("ID"), st.text_input("Pass", type="password")
             if st.form_submit_button("เข้าสู่ระบบ", use_container_width=True):
@@ -159,13 +160,13 @@ elif st.session_state.page == "login":
                     st.session_state.page = "admin"; st.query_params["admin_auth"] = "true"; st.query_params["user"] = u
                     st.rerun()
                 else: st.error("ข้อมูลไม่ถูกต้อง")
-        if st.button("⬅️ กลับหน้าหลัก"): st.session_state.page = "leaderboard"; st.rerun()
+        if st.button("⬅️ กลับ"): st.session_state.page = "leaderboard"; st.rerun()
 
 elif st.session_state.page == "admin":
     if not st.session_state.logged_in: st.session_state.page = "login"; st.rerun()
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🏆 หน้า Leaderboard", use_container_width=True): st.session_state.page = "leaderboard"; st.rerun()
+        if st.button("🏆 ดูหน้า Leaderboard", use_container_width=True): st.session_state.page = "leaderboard"; st.rerun()
     with c2:
         if st.button("🚪 ออกจากระบบ", use_container_width=True):
             st.session_state.logged_in = False; st.query_params.clear(); st.session_state.page = "leaderboard"; st.rerun()
@@ -197,7 +198,7 @@ elif st.session_state.page == "admin":
                     logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
                     match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today)]
                     if not match.empty: is_dup = True
-                if is_dup: st.error("❌ บันทึกซ้ำวันนี้ไม่ได้!")
+                if is_dup: st.error("❌ บันทึกซ้ำไม่ได้!")
                 else:
                     if st.button("🚀 ยืนยัน", use_container_width=True):
                         try:
