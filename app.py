@@ -5,14 +5,14 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# --- 1. ตั้งค่าพื้นฐานป้องกัน Error ---
+# --- 1. ตั้งค่าเริ่มต้นป้องกัน Error ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "admin_name" not in st.session_state: st.session_state.admin_name = ""
 if "show_login" not in st.session_state: st.session_state.show_login = False
 
 st.set_page_config(page_title="Patwit System", layout="wide")
 
-# CSS จัดหน้าจอและ Leaderboard 5 คอลัมน์
+# CSS จัดหน้าจอ (Login มุมซ้ายบน / Leaderboard 5 คอลัมน์)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
@@ -50,7 +50,7 @@ with t_l:
             with st.form("top_login"):
                 u = st.text_input("ID", label_visibility="collapsed", placeholder="Admin ID")
                 p = st.text_input("Pass", type="password", label_visibility="collapsed", placeholder="Password")
-                if st.form_submit_button("เข้าสู่ระบบ"):
+                if st.form_submit_button("Log In"):
                     if u in st.secrets["users"] and p == st.secrets["users"][u]:
                         st.session_state.logged_in = True
                         st.session_state.admin_name = u
@@ -64,7 +64,6 @@ with t_l:
 
 # --- 4. การแสดงผลหน้าจอหลัก ---
 if not st.session_state.logged_in:
-    # --- หน้า Leaderboard (สำหรับนักเรียน) ---
     st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
     try:
         df_v = load_data()
@@ -82,64 +81,66 @@ if not st.session_state.logged_in:
     except: st.info("กำลังโหลดข้อมูล...")
 
 else:
-    # --- หน้า Admin (บันทึกคะแนน + ระบบล็อกซ้ำ) ---
-    st.markdown("### 🎯 ระบบบันทึกคะแนน")
+    # --- หน้า Admin (บันทึกคะแนน + เช็กซ้ำแม่นยำ 100%) ---
+    st.markdown("### 🎯 บันทึกคะแนน (Surgical Update)")
     sh = get_sh()
     df_main = load_data()
 
     with st.container(border=True):
         sel_name = st.selectbox("เลือกนักเรียน", df_main.iloc[:, 0].dropna().tolist())
         days = [c for c in df_main.columns if "day" in str(c).lower()]
-        sel_day = st.selectbox("เลือกกิจกรรม (Day)", days)
+        sel_day = st.selectbox("เลือกช่องกิจกรรม (Day)", days)
         pts = st.number_input("คะแนน", min_value=1, value=5, step=1)
 
-        # --- ส่วนหัวใจ: ระบบตรวจสอบการบันทึกซ้ำจาก Logs ---
+        # --- ส่วนแก้ไข: ระบบตรวจสอบการบันทึกซ้ำโดยใช้ชื่อ Day ---
         log_ws = sh.worksheet("Logs")
-        logs_df = pd.DataFrame(log_ws.get_all_records())
+        logs_raw = log_ws.get_all_records()
+        logs_df = pd.DataFrame(logs_raw)
         today = datetime.now().strftime("%Y-%m-%d")
         
         is_duplicate = False
         if not logs_df.empty:
-            # ตรวจสอบ: ชื่อตรงกัน และ ช่อง Day ตรงกัน และ วันที่บันทึกคือวันนี้
+            # เพิ่มคอลัมน์วันที่แบบไม่มีเวลาเพื่อใช้เช็ก
             logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
+            
+            # เช็ก 3 เงื่อนไข: ชื่อตรง + วันที่ตรง + ชื่อ Day ต้องตรง (เช่น day05)
             match = logs_df[(logs_df['Student'] == sel_name) & 
                             (logs_df['Day'] == sel_day) & 
                             (logs_df['DateOnly'] == today)]
             if not match.empty:
                 is_duplicate = True
 
-        # การควบคุมปุ่มบันทึก
         if is_duplicate:
-            st.error(f"❌ วันนี้ลงคะแนนให้ '{sel_name}' ในช่อง '{sel_day}' ไปแล้ว ไม่สามารถบันทึกซ้ำได้")
+            st.error(f"❌ วันนี้ลงคะแนนให้ '{sel_name}' ในช่อง '{sel_day}' ไปแล้ว!")
             can_save = False
         else:
             can_save = True
 
         if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True, disabled=not can_save):
             try:
-                # 1. บันทึกเจาะจงช่อง (Surgical Update) ไม่ยุ่งส่วนอื่น
+                # 1. บันทึกเจาะจงช่อง (Surgical Update)
                 main_ws = sh.worksheet("Sheet1")
                 row = main_ws.find(sel_name, in_column=1).row
                 col = main_ws.find(sel_day, in_row=1).col
                 old_v = main_ws.cell(row, col).value
                 main_ws.update_cell(row, col, int(float(old_v or 0)) + pts)
                 
-                # 2. บันทึกลง Logs อัตโนมัติ
+                # 2. บันทึกลง Logs (ระบุ Day ให้ชัดเจนลงในคอลัมน์ที่ 4)
                 log_ws.append_row([
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    st.session_state.admin_name,
-                    sel_name,
-                    sel_day,
-                    pts,
-                    "Success"
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # Timestamp
+                    st.session_state.admin_name,                 # Admin
+                    sel_name,                                   # Student
+                    sel_day,                                    # Day (เช่น day05)
+                    pts,                                        # Points
+                    "Success"                                   # Status
                 ])
                 st.success(f"บันทึกสำเร็จ!")
                 st.cache_data.clear()
                 st.rerun()
             except Exception as e: st.error(f"เกิดข้อผิดพลาด: {e}")
 
-    # แสดงประวัติการบันทึกล่าสุด 5 รายการในหน้าแอดมินแทน Leaderboard เพื่อความเร็ว
+    # แสดงประวัติล่าสุด 5 รายการ
     if not logs_df.empty:
         st.markdown("---")
-        st.markdown("📜 **ประวัติการบันทึก 5 รายการล่าสุดของคุณ**")
+        st.markdown("📜 **ประวัติการบันทึกล่าสุด**")
         st.table(logs_df.tail(5)[['Timestamp', 'Student', 'Day', 'Points']])
