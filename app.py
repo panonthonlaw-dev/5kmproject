@@ -48,20 +48,6 @@ def load_data():
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet="Sheet1", ttl="0s")
 
-# ฟังก์ชันเปิดไฟล์แบบ Safe-Mode
-def open_sh(client):
-    conf = st.secrets["connections"]["gsheets"]
-    s_id = conf.get("spreadsheet")
-    s_url = conf.get("url")
-    try:
-        # ถ้าเป็นรหัสยาวๆ ให้เปิดด้วย key ถ้าเป็นลิงก์ให้เปิดด้วย URL
-        if s_id and "docs.google.com" not in s_id:
-            return client.open_by_key(s_id)
-        return client.open_by_url(s_url or s_id)
-    except Exception as e:
-        st.error("❌ หาไฟล์ Google Sheets ไม่เจอ! ตรวจสอบว่าแชร์สิทธิ์ Editor ให้ Service Account หรือยัง?")
-        return None
-
 # --- 3. ส่วนควบคุมหน้าจอ ---
 
 if st.session_state.page == "leaderboard":
@@ -106,10 +92,9 @@ elif st.session_state.page == "admin":
         st.session_state.page = "login"
         st.rerun()
     
-    # ส่วนหัว Admin
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🏆 ดูหน้า Leaderboard", use_container_width=True):
+        if st.button("🏆 ไปหน้า Leaderboard", use_container_width=True):
             st.session_state.page = "leaderboard"; st.rerun()
     with c2:
         if st.button("🚪 ออกจากระบบ", use_container_width=True):
@@ -118,48 +103,57 @@ elif st.session_state.page == "admin":
 
     st.divider()
     
-    # ระบบบันทึกคะแนน
     df_main = load_data()
     sh_client = get_gspread_client()
-    sh = open_sh(sh_client)
+    conf = st.secrets["connections"]["gsheets"]
     
-    if sh:
-        with st.container(border=True):
-            search = st.text_input("🔍 ค้นชื่อนักเรียน")
-            all_n = df_main.iloc[:, 0].dropna().tolist()
-            f_names = [n for n in all_n if search.lower() in n.lower()] if search else all_n
-            sel_name = st.selectbox(f"เลือกนักเรียน ({len(f_names)} คน)", f_names)
-            days = [c for c in df_main.columns if "day" in str(c).lower()]
-            sel_day = st.selectbox("กิจกรรม (Day)", days)
-            pts = st.number_input("คะแนน", min_value=1, value=5)
+    try:
+        sh = sh_client.open_by_key(conf.get("spreadsheet") or conf.get("url"))
+        log_ws = sh.worksheet("Logs")
+        logs_df = pd.DataFrame(log_ws.get_all_records())
+    except:
+        st.error("❌ หาไฟล์ไม่เจอ! ตรวจสอบการแชร์สิทธิ์ Editor ให้ Service Account")
+        st.stop()
+    
+    with st.container(border=True):
+        search = st.text_input("🔍 ค้นชื่อนักเรียน")
+        all_n = df_main.iloc[:, 0].dropna().tolist()
+        f_names = [n for n in all_n if search.lower() in n.lower()] if search else all_n
+        sel_name = st.selectbox(f"เลือกนักเรียน ({len(f_names)} คน)", f_names)
+        days = [c for c in df_main.columns if "day" in str(c).lower()]
+        sel_day = st.selectbox("กิจกรรม (Day)", days)
+        pts = st.number_input("คะแนน", min_value=1, value=5)
 
-            # เช็กซ้ำ
-            log_ws = sh.worksheet("Logs")
-            logs_df = pd.DataFrame(log_ws.get_all_records())
-            today = datetime.now(thai_tz).strftime("%Y-%m-%d")
-            
-            is_dup = False
-            if not logs_df.empty:
-                logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
-                match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today)]
-                if not match.empty: is_dup = True
-
-            if is_dup:
-                st.error(f"❌ วันนี้ลงคะแนนช่อง '{sel_day}' ให้ '{sel_name}' ไปแล้ว!")
-            else:
-                if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True):
-                    with st.spinner("กำลังบันทึก..."):
-                        try:
-                            row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
-                            col_idx = df_main.columns.get_loc(sel_day) + 1
-                            old_v = df_main.at[row_idx-2, sel_day]
-                            new_v = int(pd.to_numeric(old_v, errors='coerce') or 0) + pts
-                            
-                            sh.worksheet("Sheet1").update_cell(row_idx, col_idx, new_v)
-                            log_ws.append_row([datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), st.session_state.admin_name, sel_name, pts, sel_day])
-                            st.success("บันทึกสำเร็จ!")
-                            st.cache_data.clear(); st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
-
+        today = datetime.now(thai_tz).strftime("%Y-%m-%d")
+        is_dup = False
         if not logs_df.empty:
-            st.table(logs_df.tail(5)[['Timestamp', 'Student', 'Day', 'Points']])
+            logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
+            match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today)]
+            if not match.empty: is_dup = True
+
+        if is_dup:
+            st.error(f"❌ วันนี้ลงคะแนนช่อง '{sel_day}' ให้ '{sel_name}' ไปแล้ว!")
+        else:
+            if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True):
+                with st.spinner("กำลังบันทึก..."):
+                    try:
+                        # หาพิกัด
+                        row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
+                        col_idx = df_main.columns.get_loc(sel_day) + 1
+                        
+                        # --- แก้ไขจุด Error: จัดการค่า NaN อย่างปลอดภัย ---
+                        raw_val = df_main.at[row_idx-2, sel_day]
+                        numeric_val = pd.to_numeric(raw_val, errors='coerce')
+                        # ถ้าเป็น NaN ให้เปลี่ยนเป็น 0 ทันที
+                        current_score = 0 if pd.isna(numeric_val) else int(numeric_val)
+                        
+                        new_v = current_score + pts
+                        
+                        sh.worksheet("Sheet1").update_cell(row_idx, col_idx, new_v)
+                        log_ws.append_row([datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), st.session_state.admin_name, sel_name, pts, sel_day])
+                        st.success("สำเร็จ!")
+                        st.cache_data.clear(); st.rerun()
+                    except Exception as e: st.error(f"เกิดข้อผิดพลาด: {e}")
+
+    if not logs_df.empty:
+        st.table(logs_df.tail(5)[['Timestamp', 'Student', 'Day', 'Points']])
