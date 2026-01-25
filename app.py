@@ -23,63 +23,26 @@ if "logged_in" not in st.session_state:
 thai_tz = pytz.timezone('Asia/Bangkok')
 st.set_page_config(page_title="Patwit System 2026", layout="wide")
 
-# CSS: Super Compact (ลบพื้นที่ว่างส่วนเกินด้านล่างออก)
+# CSS: Super Compact
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
-    
     [data-testid="block-container"] { padding: 0.3rem 0.1rem !important; max-width: 100vw !important; overflow-x: hidden !important; }
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
-    
     * { box-sizing: border-box; }
     html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; width: 100%; overflow-x: hidden; }
-
-    .leaderboard-grid { 
-        display: grid; 
-        grid-template-columns: repeat(5, 1fr) !important; 
-        gap: 2px; 
-        width: 100%;
-        padding: 0 1px;
-    }
-    
+    .leaderboard-grid { display: grid; grid-template-columns: repeat(5, 1fr) !important; gap: 2px; width: 100%; padding: 0 1px; }
     .player-card { 
-        background: white; border-radius: 3px; 
-        padding: 3px 1px 1px 1px; /* บีบ Padding ด้านล่างให้เหลือแค่ 1px */
-        border: 0.5px solid #ccc; 
-        display: flex; flex-direction: column; 
-        gap: 0px; 
-        min-height: 0; /* เปลี่ยนจาก 100px เป็น 0 เพื่อให้หดตามเนื้อหา */
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
+        background: white; border-radius: 3px; padding: 3px 1px 1px 1px; border: 0.5px solid #ccc; 
+        display: flex; flex-direction: column; gap: 0px; min-height: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
     }
-
-    /* บรรทัด 1: อันดับ มงกุฎ ชื่อ */
-    .row-name { 
-        display: flex; align-items: center; gap: 1px; font-size: 2.2vw; font-weight: 600; 
-        color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 1px;
-        white-space: nowrap; overflow: hidden;
-    }
+    .row-name { display: flex; align-items: center; gap: 1px; font-size: 2.2vw; font-weight: 600; color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
     .player-name-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
-
-    /* บรรทัด 2 และ 3: คะแนน และ EXP */
-    .row-stat { 
-        display: flex; justify-content: space-between; align-items: center; 
-        font-size: 1.9vw; 
-        line-height: 1.0; 
-        margin-bottom: 1px; 
-    }
+    .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 1.9vw; line-height: 1.0; margin-bottom: 1px; }
     .label-text { color: #888; font-size: 1.7vw; }
     .val-score { color: #1E88E5; font-weight: 800; font-size: 2.4vw; }
     .val-exp { color: #555; font-weight: 600; font-size: 2vw; }
-
-    /* บรรทัด 4: ฉายา (ชิดติดด้านล่างสุด) */
-    .row-medal { 
-        font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; 
-        background: #fff3e0; border-radius: 2px; padding: 1px 0; 
-        margin-top: 1px; 
-        margin-bottom: 0px; /* มั่นใจว่าไม่มีช่องว่างข้างล่าง */
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-
+    .row-medal { font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; background: #fff3e0; border-radius: 2px; padding: 1px 0; margin-top: 1px; margin-bottom: 0px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     @media (min-width: 1024px) {
         .leaderboard-grid { gap: 10px; padding: 0 20px; }
         .player-card { padding: 8px 10px 4px 10px; min-height: 0; gap: 4px; }
@@ -91,7 +54,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. ฟังก์ชันจัดการข้อมูล (รายวัน 18:00) ---
+# --- 2. ฟังก์ชันจัดการข้อมูล ---
 def get_daily_1800_dt():
     now = datetime.now(thai_tz)
     cutoff = now.replace(hour=18, minute=0, second=0, microsecond=0)
@@ -149,7 +112,6 @@ if st.session_state.page == "leaderboard":
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
 
-# (ส่วน Login และ Admin ยังทำงานเหมือนเดิม)
 elif st.session_state.page == "login":
     _, center_col, _ = st.columns([1, 1, 1])
     with center_col:
@@ -167,7 +129,6 @@ elif st.session_state.page == "login":
 elif st.session_state.page == "admin":
     if not st.session_state.logged_in: st.session_state.page = "login"; st.rerun()
     
-    # บรรทัดเดิม: ปุ่มดู Leaderboard และปุ่มออก
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🏆 ดู Leaderboard", use_container_width=True): 
@@ -176,10 +137,9 @@ elif st.session_state.page == "admin":
         if st.button("🚪 ออก", use_container_width=True):
             st.session_state.logged_in = False; st.query_params.clear(); st.session_state.page = "leaderboard"; st.rerun()
     
-    # --- 🟢 ส่วนที่เพิ่มใหม่: ปุ่มอัปเดตหน้าแรกทันที ---
     if st.button("🔄 อัปเดตข้อมูลหน้า Leaderboard ทันที (Manual Update)", use_container_width=True):
-        st.cache_data.clear() # ล้างแคชเพื่อให้ดึงข้อมูลใหม่
-        st.success("อัปเดตเรียบร้อย! นักเรียนจะเห็นคะแนนล่าสุดทันทีโดยไม่ต้องรอกรอบเวลา")
+        st.cache_data.clear()
+        st.success("อัปเดตเรียบร้อย!")
         st.rerun()
   
     st.divider()
@@ -187,10 +147,11 @@ elif st.session_state.page == "admin":
     df_main = load_admin_data()
     sh = get_gspread_sh()
     
-    # ... (โค้ดส่วนที่เหลือของคุณครูเหมือนเดิม) ...
     if sh:
-        try:
-            log_ws = sh.worksheet("Logs"); logs_df = pd.DataFrame(log_ws.get_all_records())
+        try: # --- TRY ใหญ่สำหรับ Google Sheets ---
+            log_ws = sh.worksheet("Logs")
+            logs_df = pd.DataFrame(log_ws.get_all_records())
+            
             with st.container(border=True):
                 st.write("🔍 **บันทึกคะแนน**")
                 sc1, sc2, sc3 = st.columns([3, 1, 1])
@@ -199,49 +160,41 @@ elif st.session_state.page == "admin":
                     if st.button("🔍 ค้นหา", use_container_width=True): st.session_state.search_result = input_name
                 with sc3:
                     if st.button("🔄 ล้าง", use_container_width=True): st.session_state.search_result = ""; st.rerun()
+                
                 all_n = df_main.iloc[:, 0].dropna().tolist()
                 search_term = st.session_state.search_result
                 f_names = [n for n in all_n if search_term.lower() in str(n).lower()] if search_term else all_n
                 sel_name = st.selectbox(f"เลือก ({len(f_names)} คน)", f_names)
+                
                 days = [c for c in df_main.columns if "day" in str(c).lower()]
                 d_col, p_col = st.columns(2)
                 with d_col: sel_day = st.selectbox("กิจกรรม", days)
                 with p_col: pts = st.number_input("คะแนน", min_value=1, value=5)
+                
                 today = datetime.now(thai_tz).strftime("%Y-%m-%d")
                 is_dup = False
                 if not logs_df.empty:
                     logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
                     match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today)]
                     if not match.empty: is_dup = True
+                
                 if is_dup: 
                     st.error("วันนี้ให้คะแนนคนนี้แล้ว")
                 else:
                     if st.button("🚀 ยืนยัน", use_container_width=True):
-                        try:
-                            # 1. หาพิกัด (บรรทัดและคอลัมน์)
+                        try: # --- TRY ย่อยสำหรับปุ่มยืนยัน ---
                             row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
                             col_idx = df_main.columns.get_loc(sel_day) + 1
-                            
-                            # 2. ดึงค่าเดิมและจัดการปัญหาช่องว่าง (NaN)
                             raw_val = df_main.at[row_idx-2, sel_day]
                             current_score = int(pd.to_numeric(raw_val, errors='coerce') or 0)
                             
-                            # 3. อัปเดตคะแนนลง Google Sheets
                             sh.worksheet("Sheet1").update_cell(row_idx, col_idx, current_score + pts)
-                            
-                            # 4. บันทึกประวัติการให้คะแนน (Log)
                             log_ws.append_row([
                                 datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), 
-                                st.session_state.admin_name, 
-                                sel_name, 
-                                pts, 
-                                sel_day
+                                st.session_state.admin_name, sel_name, pts, sel_day
                             ])
-                            
-                            st.success("บันทึกสำเร็จ!")
-                            st.cache_data.clear() # ล้างข้อมูลเก่าเพื่อให้หน้าแรกอัปเดต
-                            st.rerun()
-                            
+                            st.success("สำเร็จ!"); st.cache_data.clear(); st.rerun()
                         except Exception as e:
-                            # บรรทัดนี้แหละครับที่คุณครูอาจจะเผลอลบไป หรือเยื้องผิด
-                            st.error(f"เกิดข้อผิดพลาด: {e}")
+                            st.error(f"เกิดข้อผิดพลาดในการบันทึก: {e}")
+        except Exception as e: # --- EXCEPT ของ TRY ใหญ่ ---
+            st.error(f"⚠️ ปัญหาการเชื่อมต่อ Sheets: {str(e)}")
