@@ -166,15 +166,28 @@ elif st.session_state.page == "login":
 
 elif st.session_state.page == "admin":
     if not st.session_state.logged_in: st.session_state.page = "login"; st.rerun()
+    
+    # บรรทัดเดิม: ปุ่มดู Leaderboard และปุ่มออก
     c1, c2 = st.columns(2)
     with c1:
-        if st.button("🏆 ดู Leaderboard", use_container_width=True): st.session_state.page = "leaderboard"; st.rerun()
+        if st.button("🏆 ดู Leaderboard", use_container_width=True): 
+            st.session_state.page = "leaderboard"; st.rerun()
     with c2:
         if st.button("🚪 ออก", use_container_width=True):
             st.session_state.logged_in = False; st.query_params.clear(); st.session_state.page = "leaderboard"; st.rerun()
+    
+    # --- 🟢 ส่วนที่เพิ่มใหม่: ปุ่มอัปเดตหน้าแรกทันที ---
+    if st.button("🔄 อัปเดตข้อมูลหน้า Leaderboard ทันที (Manual Update)", use_container_width=True):
+        st.cache_data.clear() # ล้างแคชเพื่อให้ดึงข้อมูลใหม่
+        st.success("อัปเดตเรียบร้อย! นักเรียนจะเห็นคะแนนล่าสุดทันทีโดยไม่ต้องรอกรอบเวลา")
+        st.rerun()
+  
     st.divider()
+    
     df_main = load_admin_data()
     sh = get_gspread_sh()
+    
+    # ... (โค้ดส่วนที่เหลือของคุณครูเหมือนเดิม) ...
     if sh:
         try:
             log_ws = sh.worksheet("Logs"); logs_df = pd.DataFrame(log_ws.get_all_records())
