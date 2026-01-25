@@ -24,6 +24,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     df = conn.read(worksheet="Sheet1", ttl="5s")
+    # ดึงข้อมูลมาแสดงหน้าแรก: ชื่อ(A), คะแนนรวม(AL), EXP(AM), ระดับเหรียญ(AN)
     data = df.iloc[:, [0, 37, 38, 39]].copy()
     data.columns = ['Name', 'Score', 'EXP', 'Medal']
     data['Score'] = pd.to_numeric(data['Score'], errors='coerce')
@@ -33,13 +34,22 @@ def load_logs():
     try:
         return conn.read(worksheet="Logs", ttl="0s")
     except:
-        return pd.DataFrame(columns=['Timestamp', 'Admin', 'Student', 'Activity', 'Points', 'Status'])
+        return pd.DataFrame(columns=['Timestamp', 'Admin', 'Student', 'Day', 'Activity', 'Points', 'Status'])
 
-# --- 3. ระบบ Admin & Login ---
+# --- 3. การแมปคอลัมน์ Day (J-AK) ---
+# J คือคอลัมน์ที่ 10 (index 9) จนถึง AK คือคอลัมน์ที่ 37 (index 36)
+day_columns = {}
+for i, day_num in enumerate(range(5, 31)):
+    col_name = f"Day {day_num:02d}"
+    day_columns[col_name] = 9 + i # Index 9 คือ J
+
+# --- 4. ระบบ Admin Login ---
 if "admin_user" not in st.session_state:
-    st.session_state["admin_user"] = None
+    if "admin_active" in st.query_params:
+        st.session_state["admin_user"] = st.query_params.get("user", "Admin")
+    else:
+        st.session_state["admin_user"] = None
 
-# ปุ่ม Login/Logout มุมขวาบน
 h_l, h_r = st.columns([20, 1])
 with h_r:
     if st.session_state["admin_user"] is None:
@@ -47,6 +57,7 @@ with h_r:
     else:
         if st.button("🚪"): 
             st.session_state["admin_user"] = None
+            st.query_params.clear()
             st.rerun()
 
 if st.session_state["admin_user"] is None and st.session_state.get("show_login", False):
@@ -54,50 +65,55 @@ if st.session_state["admin_user"] is None and st.session_state.get("show_login",
     with l_col:
         with st.form("admin_login"):
             u, p = st.text_input("Admin User"), st.text_input("Password", type="password")
-            if st.form_submit_button("เข้าสู่ระบบ"):
+            if st.form_submit_button("Log In"):
                 if u in st.secrets["users"] and p == st.secrets["users"][u]:
                     st.session_state["admin_user"] = u
-                    st.session_state["show_login"] = False
+                    st.query_params["admin_active"], st.query_params["user"] = "true", u
                     st.rerun()
-                else: st.error("รหัสผ่านไม่ถูกต้อง")
+                else: st.error("ข้อมูลไม่ถูกต้อง")
 
-# --- 4. ส่วนหลังบ้าน (Admin Dashboard) ---
+# --- 5. ส่วนหลังบ้าน (Admin Dashboard) ---
 if st.session_state["admin_user"]:
-    st.markdown(f"### 🛡️ ระบบจัดการหลังบ้าน (แอดมิน: {st.session_state['admin_user']})")
+    st.markdown(f"### 🛡️ ระบบหลังบ้าน: ลงคะแนนรายวัน (แอดมิน: {st.session_state['admin_user']})")
     full_df, student_data = load_data()
     log_df = load_logs()
     
-    with st.expander("🎯 บันทึกคะแนนกิจกรรม (จำกัดวันละ 1 ครั้ง)", expanded=True):
-        # ระบบค้นหาชื่อ (st.selectbox มีระบบ Search ในตัว)
+    with st.expander("🎯 บันทึกคะแนนรายวัน (J-AK)", expanded=True):
         selected_name = st.selectbox("🔍 ค้นหาชื่อนักเรียน", student_data['Name'].tolist())
         
-        # ตรวจสอบว่าวันนี้ให้คะแนนไปหรือยัง
+        col_day, col_pts = st.columns(2)
+        with col_day:
+            selected_day = st.selectbox("เลือกวันที่ลงคะแนน", list(day_columns.keys()))
+        with col_pts:
+            pts = st.number_input("คะแนนที่ให้", min_value=1, max_value=50, value=5)
+
+        # เช็คว่าวันนี้นักเรียนคนนี้ได้คะแนน "ในช่อง Day นี้" ไปหรือยัง
         today_str = datetime.now().strftime("%Y-%m-%d")
-        # แปลง Timestamp ใน log เป็นวันที่เพื่อเช็ค
         already_scored = False
         if not log_df.empty:
-            log_df['Date'] = pd.to_datetime(log_df['Timestamp']).dt.strftime("%Y-%m-%d")
-            check = log_df[(log_df['Student'] == selected_name) & (log_df['Date'] == today_str)]
+            log_df['DateOnly'] = pd.to_datetime(log_df['Timestamp']).dt.strftime("%Y-%m-%d")
+            check = log_df[(log_df['Student'] == selected_name) & (log_df['Day'] == selected_day) & (log_df['DateOnly'] == today_str)]
             if not check.empty: already_scored = True
 
-        col_a, col_p = st.columns(2)
-        with col_a: act = st.text_input("กิจกรรม", value="กิจกรรมพิเศษ")
-        with col_p: pts = st.number_input("คะแนน", min_value=1, value=5)
-        
         secret_needed = False
         if already_scored:
-            st.warning(f"⚠️ นักเรียนคนนี้ได้รับคะแนนไปแล้วในวันนี้!")
-            secret_code = st.text_input("กรุณาใส่รหัสลับเพื่อดำเนินการต่อ (แก้ไขคะแนน)", type="password")
+            st.warning(f"⚠️ {selected_name} ได้รับคะแนนของ {selected_day} ไปแล้วในวันนี้!")
+            secret_code = st.text_input("ใส่รหัสลับเพื่อแก้ไขคะแนน", type="password")
             secret_needed = True
-        
-        if st.button("🚀 ยืนยันการให้คะแนน", use_container_width=True):
-            # ตรวจสอบรหัสลับถ้าจำเป็น (สมมติรหัสลับคือ 'superadmin123' สามารถแก้ใน secrets ได้)
-            if secret_needed and secret_code != st.secrets.get("admin_secret_code", "1234"):
-                st.error("รหัสลับไม่ถูกต้อง! ไม่สามารถแก้ไขข้อมูลได้")
+
+        if st.button("🚀 บันทึกคะแนน", use_container_width=True):
+            if secret_needed and secret_code != st.secrets["admin_secret_code"]["code"]:
+                st.error("รหัสลับไม่ถูกต้อง")
             else:
-                # อัปเดตคะแนนใน Sheet หลัก
+                # หาตำแหน่ง Row และ Column
                 row_idx = full_df[full_df.iloc[:, 0] == selected_name].index[0]
-                full_df.iloc[row_idx, 37] = (0 if pd.isna(full_df.iloc[row_idx, 37]) else full_df.iloc[row_idx, 37]) + pts
+                col_idx = day_columns[selected_day]
+                
+                # ลงคะแนนในช่อง Day ที่เลือก
+                current_day_val = full_df.iloc[row_idx, col_idx]
+                full_df.iloc[row_idx, col_idx] = (0 if pd.isna(current_day_val) else current_day_val) + pts
+                
+                # อัปเดต Google Sheets
                 conn.update(worksheet="Sheet1", data=full_df)
                 
                 # บันทึก Log
@@ -105,21 +121,22 @@ if st.session_state["admin_user"]:
                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Admin": st.session_state["admin_user"],
                     "Student": selected_name,
-                    "Activity": act,
+                    "Day": selected_day,
+                    "Activity": "Daily Score",
                     "Points": pts,
                     "Status": "Edited" if already_scored else "New"
                 }])
-                updated_logs = pd.concat([log_df, new_log], ignore_index=True).drop(columns=['Date'], errors='ignore')
+                updated_logs = pd.concat([log_df, new_log], ignore_index=True).drop(columns=['DateOnly'], errors='ignore')
                 conn.update(worksheet="Logs", data=updated_logs)
                 
-                st.success(f"บันทึกสำเร็จสำหรับ {selected_name}!")
+                st.success(f"ลงคะแนน {selected_day} ให้ {selected_name} เรียบร้อย!")
                 st.balloons()
                 st.rerun()
 
-    with st.expander("📜 ประวัติการให้คะแนน (Logs)"):
-        st.dataframe(load_logs().sort_values(by="Timestamp", ascending=False), use_container_width=True)
+    with st.expander("📜 ประวัติการให้คะแนน"):
+        st.dataframe(log_df.sort_values(by="Timestamp", ascending=False), use_container_width=True)
 
-# --- 5. หน้า Leaderboard (Public) ---
+# --- 6. หน้า Leaderboard (Public) ---
 st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h2>", unsafe_allow_html=True)
 try:
     _, data = load_data()
@@ -133,11 +150,13 @@ try:
         icon = "👑" if r <= 3 else "🎖️"
         grid_html += f"""
         <div class="player-card">
-            <div class="crown-icon c-{r if r<=3 else 'normal'}" style="font-size:18px;">{icon} <span style="font-size:9px; color:gray;">#{r}</span></div>
+            <div class="rank-header" style="height:30px;">
+                <div class="c-{r if r<=3 else 'normal'}" style="font-size:18px;">{icon} <span style="font-size:9px; color:gray;">#{r}</span></div>
+            </div>
             <div style="font-size:0.85em; font-weight:600; height:35px; overflow:hidden;">{p['Name']}</div>
-            <div><div style="font-size:1.1em; font-weight:800;">{p['Score']:.0f}</div></div>
-            <div style="font-size:0.6em; opacity:0.7; border-top:1px solid #eee; padding-top:4px;">⚡ EXP: {p['EXP']}<br>🏅 {p['Medal']}</div>
+            <div><div class="score-num">{p['Score']:.0f}</div></div>
+            <div style="font-size:0.6em; opacity:0.7; border-top:1px solid rgba(128,128,128,0.1); padding-top:4px;">⚡ EXP: {p['EXP']}<br>🏅 {p['Medal']}</div>
         </div>"""
     grid_html += '</div>'
     st.markdown(grid_html, unsafe_allow_html=True)
-except: st.write("กำลังรอข้อมูล...")
+except: st.write("กำลังเชื่อมต่อข้อมูล...")
