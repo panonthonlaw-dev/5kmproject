@@ -46,6 +46,7 @@ def load_main_data():
 
 def load_logs():
     try:
+        # ดึง Log สดๆ ไม่ติด Cache เพื่อให้เห็นผลทันที
         return conn.read(worksheet="Logs", ttl="0s")
     except:
         return pd.DataFrame(columns=['Timestamp', 'Admin', 'Student', 'Day', 'Points', 'Status'])
@@ -87,34 +88,30 @@ if st.session_state["admin_user"]:
     full_df = load_main_data()
     log_df = load_logs()
     
-    with st.expander("🎯 ค้นหาและลงคะแนนรายวัน", expanded=True):
-        # --- ระบบค้นหาอัจฉริยะ ---
-        search_query = st.text_input("🔍 พิมพ์ชื่อนักเรียนเพื่อค้นหา", placeholder="เช่น สมชาย, เด็กหญิง...")
-        
+    with st.expander("🎯 จัดการคะแนนรายบุคคล", expanded=True):
+        # ระบบค้นหา
+        search_query = st.text_input("🔍 พิมพ์ชื่อนักเรียนเพื่อค้นหา", placeholder="เช่น สมชาย, มานี...")
         student_list = full_df.iloc[:, 0].dropna().tolist()
-        
-        # กรองรายชื่อตามที่พิมพ์ค้นหา
         filtered_list = [s for s in student_list if search_query.lower() in str(s).lower()] if search_query else student_list
         
         if not filtered_list:
-            st.warning("❌ ไม่พบรายชื่อที่ตรงกับการค้นหา")
+            st.warning("❌ ไม่พบรายชื่อ")
             sel_name = None
         else:
-            sel_name = st.selectbox(f"เลือกนักเรียนจากผลการค้นหา ({len(filtered_list)} คน)", filtered_list)
+            sel_name = st.selectbox(f"เลือกนักเรียน ({len(filtered_list)} คน)", filtered_list)
 
         if sel_name:
-            # ดึงข้อมูลมาโชว์ก่อนให้คะแนน
+            # 1. แสดงข้อมูลสรุปของคนที่เลือก
             student_row = full_df[full_df.iloc[:, 0] == sel_name].iloc[0]
-            st.info(f"👤 **กำลังจัดการข้อมูลของ:** {sel_name} | **คะแนนรวมปัจจุบัน:** {student_row.iloc[37]} แต้ม")
+            st.info(f"👤 **นักเรียน:** {sel_name} | **คะแนนรวมปัจจุบัน:** {student_row.iloc[37]} แต้ม")
 
-            # ดึงชื่อคอลัมน์ Day มาให้เลือกอัตโนมัติ (กัน Error ชื่อคอลัมน์ไม่ตรง)
+            # 2. ส่วนให้คะแนน
             actual_days = [col for col in full_df.columns if "day" in str(col).lower()]
-            
             col_d, col_p = st.columns(2)
             with col_d:
-                sel_day = st.selectbox("เลือกวันที่ลงคะแนน", actual_days) if actual_days else st.error("ไม่พบช่อง 'day' ใน Sheet")
+                sel_day = st.selectbox("เลือกวันที่ลงคะแนน", actual_days)
             with col_p:
-                add_pts = st.number_input("จำนวนคะแนนที่ให้", min_value=1, value=5)
+                add_pts = st.number_input("จำนวนคะแนน", min_value=1, value=5)
 
             # เช็คการให้ซ้ำ
             today_str = datetime.now().strftime("%Y-%m-%d")
@@ -125,19 +122,17 @@ if st.session_state["admin_user"]:
                 if not check.empty: already_done = True
 
             if already_done:
-                st.warning(f"⚠️ วันนี้ให้คะแนน {sel_day} ของนักเรียนคนนี้ไปแล้ว")
+                st.warning(f"⚠️ วันนี้ให้คะแนน {sel_day} ไปแล้ว")
                 secret_code = st.text_input("ใส่รหัสลับเพื่อบันทึกซ้ำ", type="password")
 
-            if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True):
+            if st.button("🚀 บันทึกคะแนน", use_container_width=True):
                 if already_done and secret_code != st.secrets["admin_secret_code"]["code"]:
                     st.error("รหัสลับไม่ถูกต้อง")
-                elif sel_day:
+                else:
                     try:
                         row_idx = full_df[full_df.iloc[:, 0] == sel_name].index[0]
                         current_val = full_df.at[row_idx, sel_day]
-                        new_val = (0 if pd.isna(current_val) or current_val == "" else float(current_val)) + add_pts
-                        full_df.at[row_idx, sel_day] = new_val
-                        
+                        full_df.at[row_idx, sel_day] = (0 if pd.isna(current_val) or current_val == "" else float(current_val)) + add_pts
                         conn.update(worksheet="Sheet1", data=full_df)
                         
                         # บันทึก Log
@@ -151,15 +146,23 @@ if st.session_state["admin_user"]:
                         }])
                         conn.update(worksheet="Logs", data=pd.concat([log_df, new_log], ignore_index=True).drop(columns=['DateOnly'], errors='ignore'))
                         
-                        st.success(f"บันทึก {add_pts} คะแนน ลงใน {sel_day} เรียบร้อย!")
-                        st.balloons()
+                        st.success(f"บันทึกเรียบร้อย!")
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
-                        st.error(f"เกิดข้อผิดพลาด: {e}")
+                        st.error(f"Error: {e}")
 
-    with st.expander("📜 ตรวจสอบประวัติการให้คะแนน"):
-        st.dataframe(log_df.sort_values(by="Timestamp", ascending=False), use_container_width=True)
+            # --- 3. ส่วนแสดง Log เฉพาะคนที่เลือก (ไฮไลต์ใหม่) ---
+            st.markdown(f"#### 📜 ประวัติคะแนนของ {sel_name}")
+            if not log_df.empty:
+                # กรอง Log เฉพาะชื่อที่เลือก
+                personal_logs = log_df[log_df['Student'] == sel_name].sort_values(by="Timestamp", ascending=False)
+                if personal_logs.empty:
+                    st.caption("ยังไม่มีประวัติการได้รับคะแนน")
+                else:
+                    st.dataframe(personal_logs[['Timestamp', 'Day', 'Points', 'Admin', 'Status']], use_container_width=True)
+            else:
+                st.caption("ไม่มีข้อมูลประวัติในระบบ")
 
 # --- 5. หน้าบ้าน: Leaderboard (Public) ---
 st.markdown("<h2 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h2>", unsafe_allow_html=True)
