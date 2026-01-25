@@ -50,6 +50,22 @@ def load_data():
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet="Sheet1", ttl="0s")
 
+# ฟังก์ชันเปิดไฟล์แบบฉลาด (ป้องกัน SpreadsheetNotFound)
+def open_spreadsheet(client):
+    conf = st.secrets["connections"]["gsheets"]
+    # ลองหาจาก ID ก่อน ถ้าไม่ได้ให้ลองหาจาก URL
+    s_id = conf.get("spreadsheet")
+    s_url = conf.get("url")
+    
+    try:
+        if s_id and len(s_id) < 60: # ตรวจสอบว่าเป็น ID หรือไม่
+            return client.open_by_key(s_id)
+        else:
+            return client.open_by_url(s_url or s_id)
+    except Exception as e:
+        st.error("❌ หาไฟล์ไม่เจอ: ตรวจสอบว่าแชร์สิทธิ์ให้ Service Account หรือยัง และเช็ก ID ใน Secrets ให้ถูกต้อง")
+        return None
+
 # --- 3. ส่วน Login มุมซ้ายบน ---
 t_l, t_m, t_r = st.columns([1, 1, 2])
 with t_l:
@@ -92,8 +108,8 @@ if not st.session_state.logged_in:
     except: st.info("กำลังโหลดข้อมูล...")
 
 else:
-    # --- หน้า Admin (เวอร์ชันเร่งความเร็ว) ---
-    st.markdown("### 🎯 บันทึกคะแนน (Turbo Update)")
+    # --- หน้า Admin (Turbo Update) ---
+    st.markdown("### 🎯 บันทึกคะแนนนักเรียน")
     df_main = load_data()
     
     with st.container(border=True):
@@ -105,51 +121,48 @@ else:
         sel_day = st.selectbox("เลือกกิจกรรม (Day)", days)
         pts = st.number_input("คะแนนที่เพิ่ม", min_value=1, value=5, step=1)
 
-        # --- ตรวจสอบซ้ำจาก Log (ดึงครั้งเดียว) ---
+        # --- เปิดไฟล์ผ่านระบบตรวจสอบสิทธิ์ ---
         client = get_gspread_client()
-        conf = st.secrets["connections"]["gsheets"]
-        sh = client.open_by_key(conf.get("spreadsheet") or conf.get("url"))
-        log_ws = sh.worksheet("Logs")
-        logs_df = pd.DataFrame(log_ws.get_all_records())
+        sh = open_spreadsheet(client)
         
-        today_str = datetime.now(thai_tz).strftime("%Y-%m-%d")
-        is_duplicate = False
-        if not logs_df.empty:
-            logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
-            match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today_str)]
-            if not match.empty: is_duplicate = True
+        if sh:
+            log_ws = sh.worksheet("Logs")
+            logs_df = pd.DataFrame(log_ws.get_all_records())
+            
+            today_str = datetime.now(thai_tz).strftime("%Y-%m-%d")
+            is_duplicate = False
+            if not logs_df.empty:
+                logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
+                match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today_str)]
+                if not match.empty: is_duplicate = True
 
-        if is_duplicate:
-            st.error(f"❌ วันนี้บันทึกช่อง '{sel_day}' ให้ '{sel_name}' ไปแล้ว!")
-            can_save = False
-        else: can_save = True
+            if is_duplicate:
+                st.error(f"❌ วันนี้บันทึกช่อง '{sel_day}' ให้ '{sel_name}' ไปแล้ว!")
+                can_save = False
+            else: can_save = True
 
-        if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True, disabled=not can_save):
-            with st.spinner("กำลังบันทึกด้วยความเร็วสูง..."):
-                try:
-                    # เทคนิค Turbo: หาพิกัดจากเครื่องเราเอง ไม่ถาม Google
-                    row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
-                    col_idx = df_main.columns.get_loc(sel_day) + 1
-                    
-                    # อ่านค่าจาก DataFrame ในเครื่องเราเลย (ประหยัดไป 1 รอบ)
-                    old_v = df_main.at[row_idx-2, sel_day]
-                    new_v = int(pd.to_numeric(old_v, errors='coerce') or 0) + pts
-                    
-                    # ส่งคำสั่งเขียนแค่ 2 รอบ (คะแนน + Log)
-                    main_ws = sh.worksheet("Sheet1")
-                    main_ws.update_cell(row_idx, col_idx, new_v)
-                    
-                    log_ws.append_row([
-                        datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), 
-                        st.session_state.admin_name, sel_name, pts, sel_day
-                    ])
-                    
-                    st.success("บันทึกสำเร็จ!")
-                    st.cache_data.clear()
-                    st.rerun()
-                except Exception as e: st.error(f"เกิดข้อผิดพลาด: {e}")
+            if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True, disabled=not can_save):
+                with st.spinner("กำลังบันทึก..."):
+                    try:
+                        # หาพิกัด
+                        row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
+                        col_idx = df_main.columns.get_loc(sel_day) + 1
+                        old_v = df_main.at[row_idx-2, sel_day]
+                        new_v = int(pd.to_numeric(old_v, errors='coerce') or 0) + pts
+                        
+                        # บันทึก
+                        sh.worksheet("Sheet1").update_cell(row_idx, col_idx, new_v)
+                        log_ws.append_row([
+                            datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), 
+                            st.session_state.admin_name, sel_name, pts, sel_day
+                        ])
+                        
+                        st.success("บันทึกสำเร็จ!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e: st.error(f"เกิดข้อผิดพลาด: {e}")
 
-    if not logs_df.empty:
-        st.markdown("---")
-        st.markdown("📜 **ประวัติ 5 รายการล่าสุด**")
-        st.table(logs_df.tail(5)[['Timestamp', 'Student', 'Day', 'Points']])
+            if not logs_df.empty:
+                st.markdown("---")
+                st.markdown("📜 **ประวัติ 5 รายการล่าสุด**")
+                st.table(logs_df.tail(5)[['Timestamp', 'Student', 'Day', 'Points']])
