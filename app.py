@@ -23,7 +23,7 @@ if "logged_in" not in st.session_state:
 thai_tz = pytz.timezone('Asia/Bangkok')
 st.set_page_config(page_title="Patwit System 2026", layout="wide")
 
-# CSS: ล็อก 5 คอลัมน์ และจัด 4 บรรทัด (แก้ไขวงเล็บ CSS ให้ปลอดภัย)
+# CSS: ล็อก 5 คอลัมน์ และจัด 4 บรรทัด (จัดระเบียบใหม่ไม่ให้ตกขอบ)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
@@ -44,56 +44,62 @@ st.markdown("""
         border: 1px solid #ddd; 
         display: flex; 
         flex-direction: column; 
-        gap: 4px;
-        min-height: 140px;
+        gap: 2px;
+        min-height: 150px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 
+    /* บรรทัด 1: อันดับ มงกุฎ ชื่อ (ซ้ายไปขวา) */
     .row-name { 
         display: flex; 
         align-items: center; 
-        gap: 3px; 
-        font-size: 2.4vw; 
+        gap: 4px; 
+        font-size: 2.6vw; 
         font-weight: 600; 
         color: #333;
-        white-space: nowrap;
-        overflow: hidden;
         border-bottom: 1px solid #eee;
         padding-bottom: 2px;
+        margin-bottom: 2px;
     }
-    .player-name-text { overflow: hidden; text-overflow: ellipsis; }
+    .player-name-text { 
+        white-space: nowrap; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+    }
 
+    /* บรรทัด 2 และ 3: คะแนน และ EXP (ป้ายซ้าย - เลขขวา) */
     .row-stat { 
         display: flex; 
         justify-content: space-between; 
         align-items: center;
-        font-size: 2.2vw;
-        line-height: 1.2;
+        font-size: 2.4vw;
+        line-height: 1.4;
     }
     .label-text { color: #777; font-weight: 400; }
-    .val-score { color: #1E88E5; font-weight: 800; font-size: 2.8vw; }
+    .val-score { color: #1E88E5; font-weight: 800; font-size: 3vw; }
     .val-exp { color: #444; font-weight: 600; }
 
+    /* บรรทัด 4: ฉายา (เต็มความกว้าง) */
     .row-medal { 
-        font-size: 2vw; 
+        font-size: 2.2vw; 
         color: #ef6c00; 
         font-weight: 600; 
         text-align: center; 
         background: #fff3e0;
         border-radius: 4px;
-        padding: 1px 0;
-        margin-top: 2px;
+        padding: 2px 0;
+        margin-top: auto;
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
     }
 
     @media (min-width: 1024px) {
-        .player-card { padding: 12px; min-height: 160px; gap: 8px; }
-        .row-name { font-size: 1rem; }
-        .row-stat { font-size: 0.9rem; }
-        .val-score { font-size: 1.3rem; }
-        .row-medal { font-size: 0.8rem; padding: 4px 0; }
+        .player-card { padding: 12px; min-height: 180px; gap: 8px; }
+        .row-name { font-size: 1.1rem; }
+        .row-stat { font-size: 1rem; }
+        .val-score { font-size: 1.4rem; }
+        .row-medal { font-size: 0.9rem; padding: 5px 0; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -139,48 +145,37 @@ def get_gspread_sh():
 # --- 3. ส่วนควบคุมหน้าจอ ---
 
 if st.session_state.page == "leaderboard":
-    # ปุ่มแอดมินมุมซ้ายบน
     col_admin, _ = st.columns([1, 8])
     with col_admin:
         if st.button("🔐 แอดมิน", key="login_btn"):
             st.session_state.page = "login"
             st.rerun()
     
-    # ดึงวันจันทร์ล่าสุด
     monday_dt = get_weekly_monday_dt()
     players, thai_date_str = load_leaderboard_weekly(monday_dt)
     
     st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
     st.markdown(f"<p style='text-align: center; font-size: 0.8rem; color: #888; margin-bottom:10px;'>ประกาศผลรายสัปดาห์: {thai_date_str}</p>", unsafe_allow_html=True)
     
-    # สร้าง Grid Leaderboard
+    # สร้าง Grid Leaderboard (ลบช่องว่างเพื่อป้องกัน Markdown เข้าใจผิดว่าเป็น Code)
     grid_h = '<div class="leaderboard-grid">'
     for p in players:
         icon = "👑" if p['Rank'] == 1 else "🎖️"
         medal_name = str(p['Medal']) if p['Medal'] else "-"
         
-        # ประกอบ HTML ของแต่ละการ์ด (4 บรรทัดตามสั่ง)
-        grid_h += f"""
-        <div class="player-card">
-            <div class="row-name">
-                <span>#{p['Rank']}</span>
-                <span>{icon}</span>
-                <span class="player-name-text">{p['Name']}</span>
-            </div>
-            <div class="row-stat">
-                <span class="label-text">คะแนน</span>
-                <span class="val-score">{p['Score']}</span>
-            </div>
-            <div class="row-stat">
-                <span class="label-text">EXP</span>
-                <span class="val-exp">{p['EXP']}</span>
-            </div>
-            <div class="row-medal">{medal_name}</div>
-        </div>
-        """
+        # เขียน HTML แบบบรรทัดเดียว หรือไม่มีการย่อหน้า (เพื่อไม่ให้เป็น Code Block)
+        grid_h += (
+            f'<div class="player-card">'
+            f'<div class="row-name"><span>#{p["Rank"]}</span><span>{icon}</span><span class="player-name-text">{p["Name"]}</span></div>'
+            f'<div class="row-stat"><span class="label-text">คะแนน</span><span class="val-score">{p["Score"]}</span></div>'
+            f'<div class="row-stat"><span class="label-text">EXP</span><span class="val-exp">{p["EXP"]}</span></div>'
+            f'<div class="row-medal">{medal_name}</div>'
+            f'</div>'
+        )
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
 
+# --- ส่วน Login และ Admin (คงเดิม) ---
 elif st.session_state.page == "login":
     _, center_col, _ = st.columns([1, 1, 1])
     with center_col:
@@ -196,8 +191,7 @@ elif st.session_state.page == "login":
                     st.query_params["admin_auth"] = "true"
                     st.query_params["user"] = u
                     st.rerun()
-                else:
-                    st.error("ข้อมูลไม่ถูกต้อง")
+                else: st.error("ข้อมูลไม่ถูกต้อง")
         if st.button("⬅️ กลับหน้าหลัก"):
             st.session_state.page = "leaderboard"
             st.rerun()
@@ -220,8 +214,6 @@ elif st.session_state.page == "admin":
             st.rerun()
 
     st.divider()
-    
-    # ส่วนบันทึกคะแนน Real-time
     df_main = load_admin_data()
     sh = get_gspread_sh()
     
@@ -229,7 +221,6 @@ elif st.session_state.page == "admin":
         try:
             log_ws = sh.worksheet("Logs")
             logs_df = pd.DataFrame(log_ws.get_all_records())
-            
             with st.container(border=True):
                 st.write("🔍 **บันทึกคะแนนนักเรียน**")
                 sc1, sc2, sc3 = st.columns([3, 1, 1])
@@ -250,41 +241,28 @@ elif st.session_state.page == "admin":
                 
                 days = [c for c in df_main.columns if "day" in str(c).lower()]
                 d_col, p_col = st.columns(2)
-                with d_col:
-                    sel_day = st.selectbox("กิจกรรม (Day)", days)
-                with p_col:
-                    pts = st.number_input("คะแนน", min_value=1, value=5)
+                with d_col: sel_day = st.selectbox("กิจกรรม (Day)", days)
+                with p_col: pts = st.number_input("คะแนน", min_value=1, value=5)
 
                 today = datetime.now(thai_tz).strftime("%Y-%m-%d")
                 is_dup = False
                 if not logs_df.empty:
                     logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
                     match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today)]
-                    if not match.empty:
-                        is_dup = True
+                    if not match.empty: is_dup = True
 
-                if is_dup:
-                    st.error(f"❌ วันนี้ลงคะแนนช่อง '{sel_day}' ให้ '{sel_name}' ไปแล้ว!")
+                if is_dup: st.error(f"❌ วันนี้บันทึกช่อง '{sel_day}' ให้ '{sel_name}' ไปแล้ว!")
                 else:
                     if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True):
-                        with st.spinner("กำลังบันทึก..."):
-                            try:
-                                # หาตำแหน่งและบันทึกแบบ Surgical Update
-                                row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
-                                col_idx = df_main.columns.get_loc(sel_day) + 1
-                                raw_val = df_main.at[row_idx-2, sel_day]
-                                current_score = int(pd.to_numeric(raw_val, errors='coerce') or 0)
-                                
-                                sh.worksheet("Sheet1").update_cell(row_idx, col_idx, current_score + pts)
-                                log_ws.append_row([datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), st.session_state.admin_name, sel_name, pts, sel_day])
-                                
-                                st.success("บันทึกสำเร็จ!")
-                                st.cache_data.clear()
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
-
-            if not logs_df.empty:
-                st.table(logs_df.tail(3)[['Timestamp', 'Student', 'Day', 'Points']])
-        except Exception as e:
-            st.error(f"⚠️ ปัญหาใน Google Sheets: {str(e)}")
+                        try:
+                            row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
+                            col_idx = df_main.columns.get_loc(sel_day) + 1
+                            raw_val = df_main.at[row_idx-2, sel_day]
+                            current_score = int(pd.to_numeric(raw_val, errors='coerce') or 0)
+                            sh.worksheet("Sheet1").update_cell(row_idx, col_idx, current_score + pts)
+                            log_ws.append_row([datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), st.session_state.admin_name, sel_name, pts, sel_day])
+                            st.success("บันทึกสำเร็จ!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
+        except Exception as e: st.error(f"⚠️ ปัญหาใน Google Sheets: {str(e)}")
