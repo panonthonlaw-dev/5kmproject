@@ -131,7 +131,7 @@ if st.session_state.page == "leaderboard":
     update_dt = get_daily_1800_dt()
     players, thai_update_str = load_leaderboard_daily(update_dt)
     
-    st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบเทพพัฒวิทย์</h3>", unsafe_allow_html=True)
     st.markdown(f"<p style='text-align: center; font-size: 0.7rem; color: #888; margin-bottom:5px;'>ข้อมูลล่าสุด (18:00 น.): {thai_update_str}</p>", unsafe_allow_html=True)
     
     grid_h = '<div class="leaderboard-grid">'
