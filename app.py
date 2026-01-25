@@ -37,25 +37,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ฟังก์ชันการเชื่อมต่อ (ปรับปรุงใหม่เพื่อแก้ SpreadsheetNotFound) ---
-
+# --- 2. ฟังก์ชันการเชื่อมต่อ ---
 def get_gspread_sh():
     try:
-        # ดึง Config จาก Secrets
         conf = st.secrets["connections"]["gsheets"]
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        creds = Credentials.from_service_account_info(conf, scopes=scopes)
+        creds = Credentials.from_service_account_info(conf, scopes=["https://www.googleapis.com/auth/spreadsheets"])
         client = gspread.authorize(creds)
-        
-        # ดึง ID หรือ URL (ตรวจสอบว่าใช้อันไหน)
         s_id = conf.get("spreadsheet")
-        s_url = conf.get("url")
-        
-        # ลองเปิดทีละแบบ
-        if s_id and len(s_id) < 100: # ถ้าเป็น ID สั้นๆ
+        if s_id and len(s_id) < 100:
             return client.open_by_key(s_id)
-        else:
-            return client.open_by_url(s_url or s_id)
+        return client.open_by_url(conf.get("url") or s_id)
     except Exception as e:
         st.error(f"⚠️ การเชื่อมต่อฐานข้อมูลล้มเหลว: {str(e)}")
         return None
@@ -68,8 +59,7 @@ def load_data():
 
 if st.session_state.page == "leaderboard":
     if st.button("🔐 สำหรับแอดมิน"):
-        st.session_state.page = "login"
-        st.rerun()
+        st.session_state.page = "login"; st.rerun()
     st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
     try:
         df_v = load_data()
@@ -100,28 +90,25 @@ elif st.session_state.page == "login":
                     st.rerun()
                 else: st.error("ข้อมูลไม่ถูกต้อง")
         if st.button("⬅️ กลับหน้าหลัก"):
-            st.session_state.page = "leaderboard"
-            st.rerun()
+            st.session_state.page = "leaderboard"; st.rerun()
 
 elif st.session_state.page == "admin":
     if not st.session_state.logged_in:
         st.session_state.page = "login"; st.rerun()
     
-    # ปุ่มควบคุม
     c1, c2 = st.columns(2)
     with c1:
         if st.button("🏆 ดูหน้า Leaderboard", use_container_width=True):
             st.session_state.page = "leaderboard"; st.rerun()
     with c2:
         if st.button("🚪 ออกจากระบบ", use_container_width=True):
-            st.session_state.logged_in = False; st.query_params.clear()
-            st.session_state.page = "leaderboard"; st.rerun()
+            st.session_state.logged_in = False; st.query_params.clear(); st.session_state.page = "leaderboard"; st.rerun()
 
     st.divider()
     
     # ระบบบันทึกคะแนน
     df_main = load_data()
-    sh = get_gspread_sh() # เรียกใช้ฟังก์ชันเชื่อมต่อที่ปรับปรุงใหม่
+    sh = get_gspread_sh()
     
     if sh:
         try:
@@ -129,9 +116,16 @@ elif st.session_state.page == "admin":
             logs_df = pd.DataFrame(log_ws.get_all_records())
             
             with st.container(border=True):
+                # --- แก้ไขจุดค้นชื่อ: บังคับเป็น String ก่อนค้นหา ---
                 search = st.text_input("🔍 ค้นชื่อนักเรียน")
                 all_n = df_main.iloc[:, 0].dropna().tolist()
-                f_names = [n for n in all_n if search.lower() in n.lower()] if search else all_n
+                
+                if search:
+                    # ใช้ str(n) เพื่อป้องกัน Error 'int' object has no attribute 'lower'
+                    f_names = [n for n in all_n if search.lower() in str(n).lower()]
+                else:
+                    f_names = all_n
+                
                 sel_name = st.selectbox(f"เลือกนักเรียน ({len(f_names)} คน)", f_names)
                 days = [c for c in df_main.columns if "day" in str(c).lower()]
                 sel_day = st.selectbox("กิจกรรม (Day)", days)
@@ -150,17 +144,20 @@ elif st.session_state.page == "admin":
                     if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True):
                         with st.spinner("กำลังบันทึก..."):
                             try:
+                                # หาพิกัด
                                 row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
                                 col_idx = df_main.columns.get_loc(sel_day) + 1
+                                
+                                # จัดการค่า NaN
                                 raw_val = df_main.at[row_idx-2, sel_day]
                                 numeric_val = pd.to_numeric(raw_val, errors='coerce')
                                 current_score = 0 if pd.isna(numeric_val) else int(numeric_val)
+                                
                                 new_v = current_score + pts
                                 
                                 sh.worksheet("Sheet1").update_cell(row_idx, col_idx, new_v)
                                 log_ws.append_row([datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), st.session_state.admin_name, sel_name, pts, sel_day])
-                                st.success("บันทึกสำเร็จ!")
-                                st.cache_data.clear(); st.rerun()
+                                st.success("บันทึกสำเร็จ!"); st.cache_data.clear(); st.rerun()
                             except Exception as e: st.error(f"เกิดข้อผิดพลาด: {e}")
 
             if not logs_df.empty:
