@@ -3,7 +3,7 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
-# --- 1. การตั้งค่าหน้าเว็บและ CSS (Professional Layout + ฉายา 2 บรรทัด) ---
+# --- 1. การตั้งค่าหน้าเว็บและ CSS (Professional Layout + No Decimals) ---
 st.set_page_config(page_title="Patwit Leaderboard", page_icon="👑", layout="wide")
 
 st.markdown("""
@@ -14,7 +14,7 @@ st.markdown("""
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; overflow-x: hidden; }
 
-    /* บังคับ 5 คอลัมน์เป๊ะ 100% */
+    /* บังคับ 5 คอลัมน์ 100% ของจอ */
     .leaderboard-grid {
         display: grid;
         grid-template-columns: repeat(5, 1fr) !important;
@@ -33,17 +33,17 @@ st.markdown("""
         display: flex; 
         flex-direction: column; 
         justify-content: space-between;
-        min-height: 170px; /* เพิ่มความสูงเผื่อฉายา 2 บรรทัด */
+        min-height: 180px; /* เพิ่มความสูงเผื่อฉายา 2 บรรทัด */
     }
 
     .rank-tag { font-size: 2.2vw !important; font-weight: 600; opacity: 0.7; }
     .c-1 { color: #FFD700; } .c-2 { color: #999; } .c-3 { color: #CD7F32; }
 
     .player-name {
-        font-size: 2.5vw !important;
+        font-size: 2.6vw !important;
         font-weight: 600;
         line-height: 1.1;
-        height: 5.5vw;
+        height: 6vw;
         display: -webkit-box;
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
@@ -54,7 +54,7 @@ st.markdown("""
     
     .label-score { font-size: 1.8vw !important; opacity: 0.6; display: block; margin-top: 5px; }
     .score-num { 
-        font-size: 4.5vw !important; 
+        font-size: 4.8vw !important; 
         font-weight: 800; 
         color: #1E88E5;
         line-height: 1;
@@ -62,26 +62,25 @@ st.markdown("""
     
     .card-footer { 
         border-top: 1px solid #f5f5f5; 
-        padding-top: 5px; 
+        padding-top: 6px; 
         margin-top: auto;
     }
     
     .data-row {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start; /* ปรับให้ชิดบนเผื่อข้อมูลมี 2 บรรทัด */
+        align-items: flex-start;
         width: 100%;
-        margin-bottom: 3px;
+        margin-bottom: 4px;
     }
 
-    .data-label { font-size: 1.8vw !important; font-weight: 400; color: #777; margin-top: 2px; }
+    .data-label { font-size: 1.9vw !important; font-weight: 400; color: #777; margin-top: 2px; }
     
-    /* จัดการค่าพลังและฉายา */
     .data-val { 
-        font-size: 1.9vw !important; 
+        font-size: 2vw !important; 
         font-weight: 600; 
         color: #333; 
-        text-align: right; /* ชิดขวาตามต้องการ */
+        text-align: right; 
         line-height: 1.1;
         max-width: 65%;
     }
@@ -89,10 +88,10 @@ st.markdown("""
     @media (min-width: 1024px) {
         [data-testid="block-container"] { padding: 2rem 5rem; }
         .leaderboard-grid { gap: 15px; }
-        .player-card { min-height: 200px; padding: 15px; }
-        .player-name { font-size: 1rem !important; height: 40px; }
-        .score-num { font-size: 2.2rem !important; }
-        .data-label, .data-val, .label-score, .rank-tag { font-size: 0.8rem !important; }
+        .player-card { min-height: 220px; padding: 15px; }
+        .player-name { font-size: 1.1rem !important; height: 45px; }
+        .score-num { font-size: 2.5rem !important; }
+        .data-label, .data-val, .label-score, .rank-tag { font-size: 0.85rem !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -100,7 +99,7 @@ st.markdown("""
 # --- 2. ฟังก์ชันจัดการข้อมูล ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def load_main_data():
+def load_data():
     return conn.read(worksheet="Sheet1", ttl="2s")
 
 # --- 3. ระบบ Authentication (Admin) ---
@@ -121,7 +120,7 @@ if st.session_state["admin_user"] is None and st.session_state.get("show_login",
     with l_col:
         with st.form("login"):
             u, p = st.text_input("Admin ID"), st.text_input("Password", type="password")
-            if st.form_submit_button("เข้าสู่ระบบ"):
+            if st.form_submit_button("Log In"):
                 if u in st.secrets["users"] and p == st.secrets["users"][u]:
                     st.session_state["admin_user"] = u
                     st.rerun()
@@ -130,10 +129,10 @@ if st.session_state["admin_user"] is None and st.session_state.get("show_login",
 # --- 4. ส่วนหลังบ้าน (Admin Panel) ---
 if st.session_state["admin_user"]:
     st.markdown(f"#### 🛡️ แอดมินจัดการคะแนน: {st.session_state['admin_user']}")
-    f_df = load_main_data()
+    f_df = load_data()
     
-    with st.expander("🎯 ค้นหาชื่อและลงคะแนน", expanded=True):
-        s_query = st.text_input("🔍 ค้นหาชื่อ")
+    with st.expander("🎯 ค้นหาและให้คะแนน", expanded=True):
+        s_query = st.text_input("🔍 ค้นหาชื่อนักเรียน")
         s_list = f_df.iloc[:, 0].dropna().tolist()
         f_list = [s for s in s_list if s_query.lower() in str(s).lower()] if s_query else s_list
         
@@ -142,26 +141,32 @@ if st.session_state["admin_user"]:
             d_cols = [c for c in f_df.columns if "day" in str(c).lower()]
             c1, c2 = st.columns(2)
             with c1: s_day = st.selectbox("เลือกวันที่", d_cols)
-            with c2: a_pts = st.number_input("คะแนน", min_value=1, value=5)
+            with c2: a_pts = st.number_input("คะแนน (เต็ม)", min_value=1, value=5, step=1)
 
-            if st.button("🚀 บันทึก", use_container_width=True):
+            if st.button("🚀 บันทึกคะแนน", use_container_width=True):
                 try:
                     idx = f_df[f_df.iloc[:, 0] == sel_n].index[0]
-                    f_df.at[idx, s_day] = (pd.to_numeric(f_df.at[idx, s_day], errors='coerce') or 0) + a_pts
+                    # ป้องกันทศนิยมตอนบันทึก
+                    current_v = pd.to_numeric(f_df.at[idx, s_day], errors='coerce') or 0
+                    f_df.at[idx, s_day] = int(current_v + a_pts)
                     conn.update(worksheet="Sheet1", data=f_df)
                     st.success("บันทึกเรียบร้อย!")
                     st.cache_data.clear()
                     st.rerun()
                 except Exception as e: st.error(f"เกิดข้อผิดพลาด: {e}")
 
-# --- 5. หน้าบ้าน: Leaderboard (Patwit Style) ---
+# --- 5. หน้าบ้าน: Leaderboard (Patwit Professional Style) ---
 st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
 
 try:
-    df = load_main_data()
+    df = load_data()
+    # ดึง Name(A), Score(AL), EXP(AM), Medal(AN)
     ld = df.iloc[:, [0, 37, 38, 39]].copy()
     ld.columns = ['Name', 'Score', 'EXP', 'Medal']
-    ld['Score'] = pd.to_numeric(ld['Score'], errors='coerce').fillna(0)
+    
+    # แปลงคะแนนเป็นเลขจำนวนเต็ม (ลบทศนิยม)
+    ld['Score'] = pd.to_numeric(ld['Score'], errors='coerce').fillna(0).astype(int)
+    ld['EXP'] = pd.to_numeric(ld['EXP'], errors='coerce').fillna(0).astype(int)
     
     df_c = ld.copy()
     df_c['Rank'] = df_c['Score'].rank(method='dense', ascending=False).astype(int)
@@ -173,9 +178,9 @@ try:
         icon = "👑" if r <= 3 else "🎖️"
         color_class = f"c-{r}" if r <= 3 else ""
         
-        # --- การจัดการฉายา: ถ้ามีช่องว่าง ให้ขึ้นบรรทัดใหม่ ---
+        # --- ฉายา 2 บรรทัด (Patwit ชิดขวา) ---
         raw_medal = str(p['Medal'])
-        formatted_medal = raw_medal.replace(' ', '<br>', 1) # แทนที่ช่องว่างแรกด้วย <br>
+        formatted_medal = raw_medal.replace(' ', '<br>', 1) if ' ' in raw_medal else raw_medal
         
         grid_h += f"""
         <div class="player-card">
@@ -183,7 +188,7 @@ try:
             <div class="player-name">{p['Name']}</div>
             <div>
                 <span class="label-score">คะแนนรวม</span>
-                <span class="score-num">{p['Score']:.0f}</span>
+                <span class="score-num">{p['Score']}</span>
             </div>
             <div class="card-footer">
                 <div class="data-row">
@@ -199,4 +204,4 @@ try:
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
 except Exception as e: 
-    st.info("กำลังโหลดข้อมูลทำเนียบ...")
+    st.info("กำลังดึงข้อมูลล่าสุด...")
