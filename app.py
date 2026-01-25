@@ -23,77 +23,33 @@ if "logged_in" not in st.session_state:
 thai_tz = pytz.timezone('Asia/Bangkok')
 st.set_page_config(page_title="Patwit System 2026", layout="wide")
 
-# CSS: ล็อก 5 คอลัมน์ และจัด 4 บรรทัด (จัดระเบียบใหม่ไม่ให้ตกขอบ)
+# CSS: ล็อก 5 คอลัมน์ และจัด 4 บรรทัด (Left-Right Alignment)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
     [data-testid="block-container"] { padding: 0.5rem 0.2rem !important; }
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; }
-    
-    .leaderboard-grid { 
-        display: grid; 
-        grid-template-columns: repeat(5, 1fr) !important; 
-        gap: 5px; 
-    }
-    
+    .leaderboard-grid { display: grid; grid-template-columns: repeat(5, 1fr) !important; gap: 5px; }
     .player-card { 
-        background: white; 
-        border-radius: 6px; 
-        padding: 6px; 
-        border: 1px solid #ddd; 
-        display: flex; 
-        flex-direction: column; 
-        gap: 2px;
-        min-height: 150px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        background: white; border-radius: 6px; padding: 6px; border: 1px solid #ddd; 
+        display: flex; flex-direction: column; gap: 2px; min-height: 150px; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
     }
-
-    /* บรรทัด 1: อันดับ มงกุฎ ชื่อ (ซ้ายไปขวา) */
     .row-name { 
-        display: flex; 
-        align-items: center; 
-        gap: 4px; 
-        font-size: 2.6vw; 
-        font-weight: 600; 
-        color: #333;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 2px;
-        margin-bottom: 2px;
+        display: flex; align-items: center; gap: 4px; font-size: 2.6vw; font-weight: 600; 
+        color: #333; border-bottom: 1px solid #eee; padding-bottom: 2px; margin-bottom: 2px;
     }
-    .player-name-text { 
-        white-space: nowrap; 
-        overflow: hidden; 
-        text-overflow: ellipsis; 
-    }
-
-    /* บรรทัด 2 และ 3: คะแนน และ EXP (ป้ายซ้าย - เลขขวา) */
-    .row-stat { 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: center;
-        font-size: 2.4vw;
-        line-height: 1.4;
-    }
+    .player-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 2.4vw; line-height: 1.4; }
     .label-text { color: #777; font-weight: 400; }
     .val-score { color: #1E88E5; font-weight: 800; font-size: 3vw; }
     .val-exp { color: #444; font-weight: 600; }
-
-    /* บรรทัด 4: ฉายา (เต็มความกว้าง) */
     .row-medal { 
-        font-size: 2.2vw; 
-        color: #ef6c00; 
-        font-weight: 600; 
-        text-align: center; 
-        background: #fff3e0;
-        border-radius: 4px;
-        padding: 2px 0;
-        margin-top: auto;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: 2.2vw; color: #ef6c00; font-weight: 600; text-align: center; 
+        background: #fff3e0; border-radius: 4px; padding: 2px 0; margin-top: auto; 
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-
     @media (min-width: 1024px) {
         .player-card { padding: 12px; min-height: 180px; gap: 8px; }
         .row-name { font-size: 1.1rem; }
@@ -104,18 +60,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. ฟังก์ชันจัดการข้อมูล ---
+# --- 2. ฟังก์ชันจัดการข้อมูล (ปรับเป็นรายวัน 18:00) ---
 
-def get_weekly_monday_dt():
+def get_daily_1800_dt():
+    """คำนวณหาเวลาอัปเดตล่าสุด (ทุกวันตอน 18:00)"""
     now = datetime.now(thai_tz)
-    days_since_monday = now.weekday()
-    last_monday = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=1, second=0, microsecond=0)
-    if now < last_monday:
-        last_monday -= timedelta(days=7)
-    return last_monday
+    today_1800 = now.replace(hour=18, minute=0, second=0, microsecond=0)
+    if now < today_1800:
+        # ถ้ายังไม่ถึง 18:00 วันนี้ ให้ใช้ 18:00 ของเมื่อวาน
+        update_time = today_1800 - timedelta(days=1)
+    else:
+        # ถ้าเลย 18:00 วันนี้แล้ว ให้ใช้ 18:00 ของวันนี้
+        update_time = today_1800
+    return update_time
 
 @st.cache_data(ttl=None)
-def load_leaderboard_weekly(monday_dt):
+def load_leaderboard_daily(update_dt):
+    """โหลดข้อมูลและแช่แข็งไว้จนกว่าจะถึง 18:00 ของวันถัดไป"""
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(worksheet="Sheet1", ttl="0s")
     ld = df.iloc[:, [0, 37, 38, 39]].copy()
@@ -123,7 +84,7 @@ def load_leaderboard_weekly(monday_dt):
     ld['Score'] = pd.to_numeric(ld['Score'], errors='coerce').fillna(0).astype(int)
     ld['EXP'] = pd.to_numeric(ld['EXP'], errors='coerce').fillna(0).astype(int)
     ld['Rank'] = ld['Score'].rank(method='dense', ascending=False).astype(int)
-    thai_date = f"{monday_dt.day:02d}/{monday_dt.month:02d}/{monday_dt.year + 543}"
+    thai_date = f"{update_dt.day:02d}/{update_dt.month:02d}/{update_dt.year + 543} (18:00 น.)"
     return ld.sort_values(by=['Rank', 'Name']).to_dict('records'), thai_date
 
 def load_admin_data():
@@ -151,19 +112,18 @@ if st.session_state.page == "leaderboard":
             st.session_state.page = "login"
             st.rerun()
     
-    monday_dt = get_weekly_monday_dt()
-    players, thai_date_str = load_leaderboard_weekly(monday_dt)
+    # ดึงเวลาตัดรอบ 18:00 และโหลดข้อมูล
+    update_dt = get_daily_1800_dt()
+    players, thai_update_str = load_leaderboard_daily(update_dt)
     
     st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align: center; font-size: 0.8rem; color: #888; margin-bottom:10px;'>ประกาศผลรายสัปดาห์: {thai_date_str}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center; font-size: 0.8rem; color: #888; margin-bottom:10px;'>อัปเดตคะแนนล่าสุดเมื่อ: {thai_update_str}</p>", unsafe_allow_html=True)
     
-    # สร้าง Grid Leaderboard (ลบช่องว่างเพื่อป้องกัน Markdown เข้าใจผิดว่าเป็น Code)
+    # สร้าง Grid (เขียน HTML แบบไม่มีเว้นวรรคเยอะ ป้องกันหน้าจอแสดงผลเป็นโค้ด)
     grid_h = '<div class="leaderboard-grid">'
     for p in players:
         icon = "👑" if p['Rank'] == 1 else "🎖️"
         medal_name = str(p['Medal']) if p['Medal'] else "-"
-        
-        # เขียน HTML แบบบรรทัดเดียว หรือไม่มีการย่อหน้า (เพื่อไม่ให้เป็น Code Block)
         grid_h += (
             f'<div class="player-card">'
             f'<div class="row-name"><span>#{p["Rank"]}</span><span>{icon}</span><span class="player-name-text">{p["Name"]}</span></div>'
@@ -175,7 +135,6 @@ if st.session_state.page == "leaderboard":
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
 
-# --- ส่วน Login และ Admin (คงเดิม) ---
 elif st.session_state.page == "login":
     _, center_col, _ = st.columns([1, 1, 1])
     with center_col:
