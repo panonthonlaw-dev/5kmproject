@@ -3,7 +3,7 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
-# --- 1. การตั้งค่าหน้าเว็บและ CSS (เน้นอ่านง่ายบนมือถือ) ---
+# --- 1. การตั้งค่าหน้าเว็บและ CSS (ล็อกสมดุล 100%) ---
 st.set_page_config(page_title="Patwit Leaderboard", page_icon="👑", layout="wide")
 
 st.markdown("""
@@ -13,55 +13,63 @@ st.markdown("""
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; }
 
+    /* บังคับ 5 คอลัมน์ และทุกแถวสูงเท่ากันเป๊ะ */
     .leaderboard-grid {
         display: grid;
         grid-template-columns: repeat(5, 1fr) !important;
-        gap: 5px;
+        grid-auto-rows: 1fr; /* บังคับให้ทุกใบในแถวสูงเท่ากัน */
+        gap: 6px;
         padding: 5px;
     }
 
     .player-card {
         background-color: var(--secondary-background-color);
         border-radius: 8px;
-        padding: 5px;
+        padding: 8px 5px;
         text-align: center;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         border: 1px solid rgba(128, 128, 128, 0.1);
-        min-height: 140px;
         display: flex; 
         flex-direction: column; 
         justify-content: space-between;
+        height: 100%; /* ให้การ์ดยืดเต็มความสูงของ Grid Row */
     }
 
-    .c-1 { color: #FFD700; } .c-2 { color: #C0C0C0; } .c-3 { color: #CD7F32; }
+    .c-1 { color: #FFD700; font-weight: bold; } 
+    .c-2 { color: #C0C0C0; font-weight: bold; } 
+    .c-3 { color: #CD7F32; font-weight: bold; }
 
+    /* ล็อกความสูงชื่อ ไม่ให้ดันกรอบ */
     .player-name {
-        font-size: 0.7em !important;
+        font-size: 0.75em !important;
         font-weight: 600;
-        height: 24px;
+        height: 32px; /* ล็อกความสูงไว้ที่ 2 บรรทัด */
+        display: -webkit-box;
+        -webkit-line-clamp: 2; /* แสดงชื่อได้สูงสุด 2 บรรทัด ถ้าเกินจะตัดเป็น ... */
+        -webkit-box-orient: vertical;
         overflow: hidden;
         line-height: 1.1;
-        margin-bottom: 2px;
+        margin: 4px 0;
     }
     
     .label-text {
-        font-size: 0.5em !important;
+        font-size: 0.55em !important;
         opacity: 0.7;
         margin-bottom: -2px;
     }
 
     .score-num { 
-        font-size: 1em !important; 
+        font-size: 1.2em !important; 
         font-weight: 800; 
         color: var(--primary-color);
-        margin-bottom: 2px;
+        line-height: 1;
     }
     
     .card-footer { 
-        font-size: 0.5em !important; 
+        font-size: 0.55em !important; 
         border-top: 1px solid rgba(128, 128, 128, 0.1); 
-        padding-top: 3px; 
-        line-height: 1.2;
+        padding-top: 5px; 
+        line-height: 1.3;
         text-align: left;
     }
     </style>
@@ -111,64 +119,63 @@ if st.session_state["admin_user"] is None and st.session_state.get("show_login",
 
 # --- 4. ส่วนหลังบ้าน (Admin Panel) ---
 if st.session_state["admin_user"]:
-    st.markdown(f"### 🛡️ จัดการคะแนน (Admin: {st.session_state['admin_user']})")
-    full_df = load_main_data()
-    log_df = load_logs()
+    st.markdown(f"### 🛡️ จัดการคะแนน (แอดมิน: {st.session_state['admin_user']})")
+    f_df = load_main_data()
+    l_df = load_logs()
     
-    with st.expander("🎯 ค้นหาและลงคะแนนรายบุคคล", expanded=True):
-        search_q = st.text_input("🔍 พิมพ์ชื่อเพื่อค้นหา")
-        student_list = full_df.iloc[:, 0].dropna().tolist()
-        filtered_list = [s for s in student_list if search_q.lower() in str(s).lower()] if search_q else student_list
+    with st.expander("🎯 ค้นหาและให้คะแนนรายบุคคล", expanded=True):
+        s_query = st.text_input("🔍 พิมพ์ชื่อเพื่อค้นหา")
+        s_list = f_df.iloc[:, 0].dropna().tolist()
+        f_list = [s for s in s_list if s_query.lower() in str(s).lower()] if s_query else s_list
         
-        if not filtered_list:
+        if not f_list:
             st.warning("ไม่พบชื่อ")
-            sel_name = None
+            sel_n = None
         else:
-            sel_name = st.selectbox(f"เลือกนักเรียน ({len(filtered_list)} คน)", filtered_list)
+            sel_n = st.selectbox(f"เลือกนักเรียน ({len(f_list)} คน)", f_list)
 
-        if sel_name:
-            row_data = full_df[full_df.iloc[:, 0] == sel_name].iloc[0]
-            st.info(f"👤 **{sel_name}** | คะแนน: {row_data.iloc[37]} | {row_data.iloc[39]}")
+        if sel_n:
+            r_data = f_df[f_df.iloc[:, 0] == sel_n].iloc[0]
+            st.info(f"👤 **{sel_n}** | คะแนนรวม: {r_data.iloc[37]} | {r_data.iloc[39]}")
 
-            day_cols = [col for col in full_df.columns if "day" in str(col).lower()]
+            d_cols = [c for c in f_df.columns if "day" in str(c).lower()]
             c1, c2 = st.columns(2)
-            with c1: sel_day = st.selectbox("เลือกช่อง", day_cols)
-            with c2: add_pts = st.number_input("คะแนน", min_value=1, value=5)
+            with c1: s_day = st.selectbox("เลือกช่อง", d_cols)
+            with c2: a_pts = st.number_input("คะแนน", min_value=1, value=5)
 
-            today_s = datetime.now().strftime("%Y-%m-%d")
+            t_s = datetime.now().strftime("%Y-%m-%d")
             already = False
-            if not log_df.empty:
-                log_df['DOnly'] = pd.to_datetime(log_df['Timestamp']).dt.strftime("%Y-%m-%d")
-                check = log_df[(log_df['Student'] == sel_name) & (log_df['Day'] == sel_day) & (log_df['DOnly'] == today_s)]
-                if not check.empty: already = True
+            if not l_df.empty:
+                l_df['DOnly'] = pd.to_datetime(l_df['Timestamp']).dt.strftime("%Y-%m-%d")
+                chk = l_df[(l_df['Student'] == sel_n) & (l_df['Day'] == s_day) & (l_df['DOnly'] == t_s)]
+                if not chk.empty: already = True
 
             if already:
                 st.warning("⚠️ วันนี้เคยให้คะแนนช่องนี้ไปแล้ว")
-                s_code = st.text_input("รหัสลับบันทึกซ้ำ", type="password")
+                sc_code = st.text_input("รหัสลับบันทึกซ้ำ", type="password")
 
             if st.button("🚀 บันทึกคะแนน", use_container_width=True):
-                if already and s_code != st.secrets["admin_secret_code"]["code"]:
+                if already and sc_code != st.secrets["admin_secret_code"]["code"]:
                     st.error("รหัสลับผิด")
                 else:
                     try:
-                        r_idx = full_df[full_df.iloc[:, 0] == sel_name].index[0]
-                        c_val = full_df.at[r_idx, sel_day]
-                        full_df.at[r_idx, sel_day] = (0 if pd.isna(c_val) or c_val == "" else float(c_val)) + add_pts
-                        conn.update(worksheet="Sheet1", data=full_df)
+                        idx = f_df[f_df.iloc[:, 0] == sel_n].index[0]
+                        f_df.at[idx, s_day] = (0 if pd.isna(f_df.at[idx, s_day]) or f_df.at[idx, s_day] == "" else float(f_df.at[idx, s_day])) + a_pts
+                        conn.update(worksheet="Sheet1", data=f_df)
                         
-                        n_log = pd.DataFrame([{"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Admin": st.session_state["admin_user"], "Student": sel_name, "Day": sel_day, "Points": add_pts, "Status": "New"}])
-                        conn.update(worksheet="Logs", data=pd.concat([log_df, n_log], ignore_index=True).drop(columns=['DOnly'], errors='ignore'))
-                        st.success("สำเร็จ!")
+                        nl = pd.DataFrame([{"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Admin": st.session_state["admin_user"], "Student": sel_n, "Day": s_day, "Points": a_pts, "Status": "New"}])
+                        conn.update(worksheet="Logs", data=pd.concat([l_df, nl], ignore_index=True).drop(columns=['DOnly'], errors='ignore'))
+                        st.success("บันทึกสำเร็จ!")
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
 
-            st.markdown(f"**📜 ประวัติของ {sel_name}**")
-            if not log_df.empty:
-                p_logs = log_df[log_df['Student'] == sel_name].sort_values(by="Timestamp", ascending=False)
+            st.markdown(f"**📜 ประวัติของ {sel_n}**")
+            if not l_df.empty:
+                p_logs = l_df[l_df['Student'] == sel_n].sort_values(by="Timestamp", ascending=False)
                 st.dataframe(p_logs[['Timestamp', 'Day', 'Points', 'Admin']], use_container_width=True)
 
-# --- 5. หน้าบ้าน: Leaderboard (5 Columns พร้อมป้ายกำกับ) ---
+# --- 5. หน้าบ้าน: Leaderboard (Perfect Balance 5 Columns) ---
 st.markdown("<h3 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
 
 try:
@@ -195,9 +202,9 @@ try:
             </div>
             <div class="card-footer">
                 <div><b>EXP:</b> {p['EXP']}</div>
-                <div style="margin-top:2px;"><b>ฉายา:</b> {p['Medal']}</div>
+                <div><b>ฉายา:</b> {p['Medal']}</div>
             </div>
         </div>"""
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
-except: st.info("💡 กำลังโหลดข้อมูล...")
+except: st.info("💡 กำลังโหลดข้อมูลสดใหม่...")
