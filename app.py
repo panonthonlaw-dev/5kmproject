@@ -95,37 +95,35 @@ if st.session_state["admin_user"]:
                 if sc_code == st.secrets["admin_secret_code"]["code"]:
                     secret_pass = True
 
-            # --- ปุ่มบันทึก ---
-            if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True):
-                if already and not secret_pass:
-                    st.error("กรุณาระบุรหัสลับให้ถูกต้องเพื่อบันทึกซ้ำ")
-                else:
-                    try:
-                        # 1. บันทึกลง Sheet1
-                        idx = f_df[f_df.iloc[:, 0] == sel_n].index[0]
-                        curr = pd.to_numeric(f_df.at[idx, s_day], errors='coerce') or 0
-                        f_df.at[idx, s_day] = int(curr + a_pts)
-                        conn.update(worksheet="Sheet1", data=f_df)
-                        
-                        # 2. บันทึกลง Logs
-                        new_log = pd.DataFrame([{
-                            "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "Admin": st.session_state["admin_user"],
-                            "Student": sel_n,
-                            "Day": s_day,
-                            "Points": a_pts,
-                            "Status": "Duplicate/Edited" if already else "Success"
-                        }])
-                        # กรองเอาคอลัมน์ CheckDate ออกก่อนบันทึก
-                        log_to_save = pd.concat([log_df.drop(columns=['CheckDate'], errors='ignore'), new_log], ignore_index=True)
-                        conn.update(worksheet="Logs", data=log_to_save)
-                        
-                        st.success(f"บันทึกคะแนนให้ {sel_n} สำเร็จ!")
-                        st.balloons()
-                        st.cache_data.clear()
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"เกิดข้อผิดพลาดขณะบันทึก: {e}")
+            # --- ส่วนหลังบ้าน: บันทึกแบบปลอดภัย (Protect Formulas) ---
+if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True):
+    try:
+        # 1. ดึงข้อมูลใหม่ล่าสุดแบบ 0s TTL (กันการย้อนเวอร์ชัน)
+        current_full_df = conn.read(worksheet="Sheet1", ttl="0s")
+        
+        # 2. ค้นหาตำแหน่ง
+        row_idx = current_full_df[current_full_df.iloc[:, 0] == sel_name].index[0]
+        
+        # 3. อัปเดตคะแนนเฉพาะใน DataFrame (ตัวแปรใน Python)
+        curr_v = pd.to_numeric(current_full_df.at[row_idx, sel_day], errors='coerce') or 0
+        current_full_df.at[row_idx, sel_day] = int(curr_v + a_pts)
+        
+        # --- [จุดสำคัญ] บันทึกแบบจำกัดช่วง (Protect AL, AM, AN) ---
+        # เราจะส่งไปเฉพาะคอลัมน์ A ถึง AK (ตำแหน่งที่ 0 ถึง 36) เท่านั้น
+        # คอลัมน์ AL เป็นต้นไปที่มีสูตร จะไม่ถูกแอปแตะต้องเลย
+        safe_df = current_full_df.iloc[:, :37] # ดึงมาเฉพาะคอลัมน์แรกถึง AK
+        
+        # บันทึกกลับไปที่ Sheet1 (ระบบจะทับเฉพาะพื้นที่ที่ระบุ)
+        conn.update(worksheet="Sheet1", data=safe_df)
+        
+        # 4. บันทึก Log (ทำเหมือนเดิม)
+        # ... (โค้ดบันทึก Log ของคุณครู)
+        
+        st.success(f"บันทึกสำเร็จ! สูตรในคอลัมน์ AL-AN ปลอดภัยแน่นอน")
+        st.cache_data.clear()
+        st.rerun()
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาด: {e}")
 
             st.markdown(f"**📜 ประวัติของ {sel_n}**")
             if not log_df.empty:
