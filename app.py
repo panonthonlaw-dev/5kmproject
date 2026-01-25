@@ -217,12 +217,30 @@ elif st.session_state.page == "admin":
                 else:
                     if st.button("🚀 ยืนยัน", use_container_width=True):
                         try:
+                            # 1. หาพิกัดแถวและคอลัมน์
                             row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
                             col_idx = df_main.columns.get_loc(sel_day) + 1
+                            
+                            # 2. ดึงค่าเดิมออกมาจัดการ (ป้องกัน Error NaN)
                             raw_val = df_main.at[row_idx-2, sel_day]
+                            
+                            # แปลงเป็นตัวเลข ถ้าเป็นค่าว่าง (NaN) ให้กลายเป็น 0 ทันที
                             current_score = int(pd.to_numeric(raw_val, errors='coerce') or 0)
+                            
+                            # 3. บันทึกคะแนนใหม่ลง Google Sheets
                             sh.worksheet("Sheet1").update_cell(row_idx, col_idx, current_score + pts)
-                            log_ws.append_row([datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), st.session_state.admin_name, sel_name, pts, sel_day])
-                            st.success("สำเร็จ!"); st.cache_data.clear(); st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
-        except Exception as e: st.error(f"⚠️ ปัญหา: {str(e)}")
+                            
+                            # 4. บันทึกลง Log
+                            log_ws.append_row([
+                                datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), 
+                                st.session_state.admin_name, 
+                                sel_name, 
+                                pts, 
+                                sel_day
+                            ])
+                            
+                            st.success(f"บันทึกให้ {sel_name} สำเร็จ!")
+                            st.cache_data.clear() # ล้างแคชเพื่อให้หน้าแรกเห็นข้อมูลใหม่ (ถ้ากด Manual Update)
+                            st.rerun()
+                        except Exception as e: 
+                            st.error(f"เกิดข้อผิดพลาด: {e}")
