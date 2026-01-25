@@ -182,18 +182,34 @@ elif st.session_state.page == "admin":
                     st.error("วันนี้ให้คะแนนคนนี้แล้ว")
                 else:
                     if st.button("🚀 ยืนยัน", use_container_width=True):
-                        try: # --- TRY ย่อยสำหรับปุ่มยืนยัน ---
+                        try:
+                            # 1. หาพิกัดแถวและคอลัมน์ (เหมือนเดิม)
                             row_idx = df_main[df_main.iloc[:,0] == sel_name].index[0] + 2
                             col_idx = df_main.columns.get_loc(sel_day) + 1
-                            raw_val = df_main.at[row_idx-2, sel_day]
-                            current_score = int(pd.to_numeric(raw_val, errors='coerce') or 0)
                             
+                            # 2. ดึงค่าเดิมและจัดการปัญหาช่องว่าง (แก้ไขใหม่ให้หายขาด)
+                            raw_val = df_main.at[row_idx-2, sel_day]
+                            val_as_numeric = pd.to_numeric(raw_val, errors='coerce')
+                            
+                            # ถ้าเป็นค่าว่าง (NaN) ให้เป็น 0 ถ้าไม่ว่างให้แปลงเป็นจำนวนเต็ม
+                            current_score = 0 if pd.isna(val_as_numeric) else int(val_as_numeric)
+                            
+                            # 3. อัปเดตคะแนนลง Google Sheets
                             sh.worksheet("Sheet1").update_cell(row_idx, col_idx, current_score + pts)
+                            
+                            # 4. บันทึกประวัติการให้คะแนน (Log)
                             log_ws.append_row([
                                 datetime.now(thai_tz).strftime("%Y-%m-%d %H:%M:%S"), 
-                                st.session_state.admin_name, sel_name, pts, sel_day
+                                st.session_state.admin_name, 
+                                sel_name, 
+                                pts, 
+                                sel_day
                             ])
-                            st.success("สำเร็จ!"); st.cache_data.clear(); st.rerun()
+                            
+                            st.success(f"บันทึกให้ {sel_name} เรียบร้อยแล้ว!")
+                            st.cache_data.clear() 
+                            st.rerun()
+                            
                         except Exception as e:
                             st.error(f"เกิดข้อผิดพลาดในการบันทึก: {e}")
         except Exception as e: # --- EXCEPT ของ TRY ใหญ่ ---
