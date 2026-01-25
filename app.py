@@ -3,7 +3,7 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 
-# --- 1. การตั้งค่าหน้าเว็บและ CSS (ล็อกสมดุล 100%) ---
+# --- 1. การตั้งค่าหน้าเว็บและ CSS (หน่วย Scaling ตามหน้าจอจริง) ---
 st.set_page_config(page_title="Patwit Leaderboard", page_icon="👑", layout="wide")
 
 st.markdown("""
@@ -13,64 +13,74 @@ st.markdown("""
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     html, body, [class*="css"] { font-family: 'Sarabun', sans-serif; }
 
-    /* บังคับ 5 คอลัมน์ และทุกแถวสูงเท่ากันเป๊ะ */
+    /* บังคับ 5 คอลัมน์ และใช้หน่วย vw เพื่อให้หดตามขนาดจอ */
     .leaderboard-grid {
         display: grid;
         grid-template-columns: repeat(5, 1fr) !important;
-        grid-auto-rows: 1fr; /* บังคับให้ทุกใบในแถวสูงเท่ากัน */
-        gap: 6px;
+        gap: 1vw; /* ระยะห่างปรับตามความกว้างจอ */
         padding: 5px;
+        width: 100%;
     }
 
     .player-card {
         background-color: var(--secondary-background-color);
-        border-radius: 8px;
-        padding: 8px 5px;
+        border-radius: 5px;
+        padding: 1.5vw 1vw;
         text-align: center;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         border: 1px solid rgba(128, 128, 128, 0.1);
         display: flex; 
         flex-direction: column; 
         justify-content: space-between;
-        height: 100%; /* ให้การ์ดยืดเต็มความสูงของ Grid Row */
+        aspect-ratio: 1 / 1.4; /* บังคับสัดส่วนการ์ดให้เป็นสี่เหลี่ยมผืนผ้าเท่ากันทุกใบ */
+        overflow: hidden;
     }
 
+    /* ใช้หน่วย vw สำหรับฟอนต์เพื่อให้ตัวอักษรเล็กลงอัตโนมัติในมือถือจอเล็ก */
+    .rank-text { font-size: 2.2vw !important; opacity: 0.8; }
     .c-1 { color: #FFD700; font-weight: bold; } 
     .c-2 { color: #C0C0C0; font-weight: bold; } 
     .c-3 { color: #CD7F32; font-weight: bold; }
 
-    /* ล็อกความสูงชื่อ ไม่ให้ดันกรอบ */
     .player-name {
-        font-size: 0.75em !important;
+        font-size: 2.4vw !important; /* ชื่อจะหดตามจอ */
         font-weight: 600;
-        height: 32px; /* ล็อกความสูงไว้ที่ 2 บรรทัด */
+        line-height: 1.1;
+        height: 5.2vw; /* ล็อกความสูงชื่อ */
         display: -webkit-box;
-        -webkit-line-clamp: 2; /* แสดงชื่อได้สูงสุด 2 บรรทัด ถ้าเกินจะตัดเป็น ... */
+        -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        line-height: 1.1;
-        margin: 4px 0;
+        margin: 2px 0;
     }
     
     .label-text {
-        font-size: 0.55em !important;
+        font-size: 1.8vw !important;
         opacity: 0.7;
-        margin-bottom: -2px;
     }
 
     .score-num { 
-        font-size: 1.2em !important; 
+        font-size: 3.5vw !important; /* คะแนนตัวใหญ่ชัดเจน */
         font-weight: 800; 
         color: var(--primary-color);
         line-height: 1;
     }
     
     .card-footer { 
-        font-size: 0.55em !important; 
+        font-size: 1.8vw !important; 
         border-top: 1px solid rgba(128, 128, 128, 0.1); 
-        padding-top: 5px; 
-        line-height: 1.3;
+        padding-top: 3px; 
+        line-height: 1.2;
         text-align: left;
+        white-space: nowrap; /* ป้องกันตัวหนังสือขึ้นบรรทัดใหม่จนเบียดกัน */
+    }
+
+    /* สำหรับหน้าจอคอมพิวเตอร์ (จอใหญ่) ให้จำกัดขนาดฟอนต์ไม่ให้ใหญ่เกินไป */
+    @media (min-width: 1024px) {
+        .player-name { font-size: 0.8em !important; height: 35px; }
+        .score-num { font-size: 1.5em !important; }
+        .card-footer, .label-text, .rank-text { font-size: 0.6em !important; }
+        .player-card { aspect-ratio: auto; min-height: 150px; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -115,11 +125,11 @@ if st.session_state["admin_user"] is None and st.session_state.get("show_login",
                     st.query_params["admin_active"], st.query_params["user"] = "true", u
                     st.session_state["show_login"] = False
                     st.rerun()
-                else: st.error("ข้อมูลไม่ถูกต้อง")
+                else: st.error("รหัสผ่านไม่ถูกต้อง")
 
 # --- 4. ส่วนหลังบ้าน (Admin Panel) ---
 if st.session_state["admin_user"]:
-    st.markdown(f"### 🛡️ จัดการคะแนน (แอดมิน: {st.session_state['admin_user']})")
+    st.markdown(f"### 🛡️ จัดการคะแนน (Admin: {st.session_state['admin_user']})")
     f_df = load_main_data()
     l_df = load_logs()
     
@@ -175,7 +185,7 @@ if st.session_state["admin_user"]:
                 p_logs = l_df[l_df['Student'] == sel_n].sort_values(by="Timestamp", ascending=False)
                 st.dataframe(p_logs[['Timestamp', 'Day', 'Points', 'Admin']], use_container_width=True)
 
-# --- 5. หน้าบ้าน: Leaderboard (Perfect Balance 5 Columns) ---
+# --- 5. หน้าบ้าน: Leaderboard (Perfect Balance) ---
 st.markdown("<h3 style='text-align: center;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
 
 try:
@@ -194,7 +204,7 @@ try:
         icon = "👑" if r <= 3 else "🎖️"
         grid_h += f"""
         <div class="player-card">
-            <div style="font-size:9px;"><span class="c-{r if r<=3 else 'normal'}">{icon}</span> #{r}</div>
+            <div class="rank-text"><span class="c-{r if r<=3 else 'normal'}">{icon}</span> #{r}</div>
             <div class="player-name">{p['Name']}</div>
             <div>
                 <div class="label-text">คะแนนรวม</div>
@@ -207,4 +217,4 @@ try:
         </div>"""
     grid_h += '</div>'
     st.markdown(grid_h, unsafe_allow_html=True)
-except: st.info("💡 กำลังโหลดข้อมูลสดใหม่...")
+except: st.info("💡 กำลังดึงข้อมูลล่าสุด...")
