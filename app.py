@@ -200,7 +200,7 @@ elif st.session_state.page == "admin":
                     logs_df['DateOnly'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
                     match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['DateOnly'] == today)]
                     if not match.empty: is_dup = True
-                if is_dup: st.error("บันทึกซ้ำไม่ได้!")
+                if is_dup: st.error("วันนี้ให้คะแนนคนนี้แล้ว")
                 else:
                     if st.button("🚀 ยืนยัน", use_container_width=True):
                         try:
