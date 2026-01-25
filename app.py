@@ -5,14 +5,12 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 
-# --- 1. ตั้งค่าพื้นฐานและตัวแปรเริ่มต้น ---
+# --- 1. ตั้งค่าเริ่มต้นป้องกัน Error ---
 if "logged_in" not in st.session_state: st.session_state.logged_in = False
 if "admin_name" not in st.session_state: st.session_state.admin_name = ""
-if "show_login" not in st.session_state: st.session_state.show_login = False
 
+# --- 2. CSS ล็อก 5 คอลัมน์สมบูรณ์แบบ ---
 st.set_page_config(page_title="Patwit Leaderboard", layout="wide")
-
-# CSS: ล็อก 5 คอลัมน์สมดุลบนมือถือ
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
@@ -29,95 +27,74 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ฟังก์ชันการเชื่อมต่อ (gspread สำหรับการเขียน และ gsheets สำหรับการอ่าน) ---
-def get_gspread_sh():
+# --- 3. ฟังก์ชันดึงข้อมูลแบบ Real-time ---
+def get_sh():
     conf = st.secrets["connections"]["gsheets"]
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
     creds = Credentials.from_service_account_info(conf, scopes=scopes)
     client = gspread.authorize(creds)
-    sheet_id = conf.get("spreadsheet") or conf.get("url")
-    # ตรวจสอบว่าเป็น URL หรือ ID
-    if "docs.google.com" in sheet_id: return client.open_by_url(sheet_id)
-    return client.open_by_key(sheet_id)
+    s_id = conf.get("spreadsheet") or conf.get("url")
+    return client.open_by_key(s_id) if len(s_id) < 60 else client.open_by_url(s_id)
 
 def load_view_data():
     conn = st.connection("gsheets", type=GSheetsConnection)
     return conn.read(worksheet="Sheet1", ttl="0s")
 
-# --- 3. ระบบ Authentication ---
-h_l, h_r = st.columns([20, 1])
-with h_r:
-    if not st.session_state.logged_in:
-        if st.button("🔓"): st.session_state.show_login = not st.session_state.show_login
-    else:
-        if st.button("🚪"): 
-            st.session_state.logged_in = False
-            st.rerun()
-
-if st.session_state.show_login and not st.session_state.logged_in:
+# --- 4. ระบบล็อกอิน ---
+if not st.session_state.logged_in:
     _, l_col, _ = st.columns([1, 1, 1])
     with l_col:
         with st.form("login"):
             u, p = st.text_input("Admin ID"), st.text_input("Password", type="password")
-            if st.form_submit_button("Login"):
+            if st.form_submit_button("Login", use_container_width=True):
                 if u in st.secrets["users"] and p == st.secrets["users"][u]:
                     st.session_state.logged_in = True
                     st.session_state.admin_name = u
-                    st.session_state.show_login = False
                     st.rerun()
                 else: st.error("ข้อมูลไม่ถูกต้อง")
-
-# --- 4. ส่วน Admin: บันทึกคะแนน + ป้องกันบันทึกซ้ำ + ระบบ Log ---
-if st.session_state.logged_in:
+else:
+    # --- 5. ส่วน Admin: บันทึกคะแนน + เช็กซ้ำ + ระบบ Log ---
     st.markdown(f"#### 🛡️ แอดมิน: {st.session_state.admin_name}")
     df_main = load_view_data()
+    sh = get_sh()
     
-    with st.expander("🎯 บันทึกคะแนนใหม่", expanded=True):
+    with st.expander("🎯 บันทึกคะแนน", expanded=True):
         sel_name = st.selectbox("เลือกนักเรียน", df_main.iloc[:, 0].dropna().tolist())
         days = [c for c in df_main.columns if "day" in str(c).lower()]
-        sel_day = st.selectbox("เลือกช่องลงคะแนน (Day)", days)
+        sel_day = st.selectbox("เลือกช่องกิจกรรม (Day)", days)
         pts = st.number_input("คะแนน", min_value=1, value=5, step=1)
 
-        # --- ระบบตรวจสอบการบันทึกซ้ำ (ตรวจสอบจาก Logs สดๆ) ---
-        sh = get_gspread_sh()
+        # --- ระบบเช็กซ้ำจาก Logs สดๆ ---
         log_ws = sh.worksheet("Logs")
-        logs_raw = log_ws.get_all_records()
-        logs_df = pd.DataFrame(logs_raw)
+        logs_all = log_ws.get_all_records()
+        logs_df = pd.DataFrame(logs_all)
         
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now().strftime("%Y-%m-%d")
         is_duplicate = False
-
+        
         if not logs_df.empty:
-            # ล็อกที่: ชื่อนักเรียนตรงกัน + ช่อง Day ตรงกัน + วันที่ (Timestamp) ตรงกับวันนี้
-            # แปลง Timestamp ใน log ให้เป็นแค่วันที่เพื่อเช็คซ้ำ
-            logs_df['Date_Only'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
-            match = logs_df[
-                (logs_df['Student'] == sel_name) & 
-                (logs_df['Day'] == sel_day) & 
-                (logs_df['Date_Only'] == today_str)
-            ]
+            # เช็ก: ชื่อตรง + ช่อง Day ตรง + วันที่บันทึกตรงกับวันนี้
+            logs_df['Date'] = pd.to_datetime(logs_df['Timestamp']).dt.strftime("%Y-%m-%d")
+            match = logs_df[(logs_df['Student'] == sel_name) & (logs_df['Day'] == sel_day) & (logs_df['Date'] == today)]
             if not match.empty:
                 is_duplicate = True
 
         if is_duplicate:
-            st.error(f"❌ ชื่อนี้วันนี้มีการลงคะแนนแล้วในช่อง {sel_day}")
-            st.info("ระบบไม่อนุญาตให้บันทึกซ้ำในวันเดียวกันเพื่อป้องกันความผิดพลาด")
-            can_submit = False
+            st.error(f"❌ วันนี้ชื่อ '{sel_name}' มีการลงคะแนนในช่อง '{sel_day}' ไปแล้ว")
+            can_save = False
         else:
-            can_submit = True
+            can_save = True
 
-        if st.button("🚀 ยืนยันบันทึกคะแนน", use_container_width=True, disabled=not can_submit):
+        if st.button("🚀 ยืนยันบันทึก", use_container_width=True, disabled=not can_save):
             try:
-                # 1. บันทึกเจาะจงช่อง (Surgical Update) - ห้ามลบส่วนอื่น
+                # 1. บันทึกคะแนน (Surgical Update - จิ้มช่องเดียว ห้ามลบสูตร)
                 main_ws = sh.worksheet("Sheet1")
-                row_idx = main_ws.find(sel_name, in_column=1).row
-                col_idx = main_ws.find(sel_day, in_row=1).col
+                row = main_ws.find(sel_name, in_column=1).row
+                col = main_ws.find(sel_day, in_row=1).col
+                old_v = main_ws.cell(row, col).value
+                main_ws.update_cell(row, col, int(float(old_v or 0)) + pts)
                 
-                old_val = main_ws.cell(row_idx, col_idx).value
-                new_val = int(float(old_val or 0)) + pts
-                main_ws.update_cell(row_idx, col_idx, new_val)
-                
-                # 2. บันทึกลง Logs
+                # 2. บันทึกลง Logs ทันที
                 log_ws.append_row([
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     st.session_state.admin_name,
@@ -127,20 +104,18 @@ if st.session_state.logged_in:
                     "Success"
                 ])
                 
-                st.success(f"บันทึกให้ {sel_name} สำเร็จ!")
+                st.success(f"บันทึกสำเร็จ! และลงประวัติใน Logs เรียบร้อย")
                 st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
 
-# --- 5. หน้าบ้าน: Leaderboard (5-Column) ---
+# --- 6. หน้า Leaderboard (แสดงผล 5 คอลัมน์) ---
 st.markdown("<h3 style='text-align: center; color: #1E88E5;'>🏆 ทำเนียบผู้กล้า</h3>", unsafe_allow_html=True)
 try:
     df_v = load_view_data()
-    # ดึงคอลัมน์ A(0), AL(37), AM(38), AN(39)
     ld = df_v.iloc[:, [0, 37, 38, 39]].copy()
     ld.columns = ['Name', 'Score', 'EXP', 'Medal']
-    
     ld['Score'] = pd.to_numeric(ld['Score'], errors='coerce').fillna(0).astype(int)
     ld['EXP'] = pd.to_numeric(ld['EXP'], errors='coerce').fillna(0).astype(int)
     ld['Rank'] = ld['Score'].rank(method='dense', ascending=False).astype(int)
@@ -162,4 +137,4 @@ try:
             </div>
         </div>"""
     st.markdown(grid_h + '</div>', unsafe_allow_html=True)
-except: st.info("กำลังโหลดข้อมูลล่าสุด...")
+except: st.info("กำลังโหลด...")
