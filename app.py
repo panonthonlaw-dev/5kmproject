@@ -55,23 +55,24 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. ฟังก์ชันจัดการข้อมูล ---
-def get_weekly_monday_0600_dt():
+def get_monday_0600_cutoff():
     now = datetime.now(thai_tz)
-    # weekday() -> 0 คือวันจันทร์, 6 คือวันอาทิตย์
-    days_since_monday = now.weekday() 
-    
-    # หาวันจันทร์ของสัปดาห์นี้ตอน 06:00
+    # หาวันจันทร์ที่ผ่านมา (0=จันทร์, 6=อาทิตย์)
+    days_since_monday = now.weekday()
+    # ปรับให้เป็นวันจันทร์สัปดาห์นี้ 06:00:00 (เป๊ะๆ)
     cutoff = (now - timedelta(days=days_since_monday)).replace(hour=6, minute=0, second=0, microsecond=0)
     
-    # ถ้าปัจจุบันยังไม่ถึงวันจันทร์ตอน 06:00 (เช่น เป็นวันอาทิตย์ หรือเช้าวันจันทร์ตอนตี 5)
-    # ให้ถอยกลับไปวันจันทร์ของสัปดาห์ก่อนหน้า
+    # ถ้าตอนนี้ยังไม่ถึงวันจันทร์ 06:00 (เช่น เป็นวันอาทิตย์) ให้ถอยไปวันจันทร์ที่แล้ว
     if now < cutoff:
         cutoff -= timedelta(days=7)
+    return cutoff
         
     return cutoff
+@st.cache_data(ttl=None)  # เก็บไว้จนกว่า Key (update_dt) จะเปลี่ยน หรือจนกว่าจะสั่งล้าง
 def load_leaderboard_daily(update_dt):
     conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(worksheet="Sheet1", ttl="0s")
+    # เปลี่ยน ttl เป็น None หรือค่าที่นานๆ เพื่อให้ Cache ชั้นนอกทำงาน
+    df = conn.read(worksheet="Sheet1", ttl=None) 
     ld = df.iloc[:, [0, 37, 38, 39]].copy()
     ld.columns = ['Name', 'Score', 'EXP', 'Medal']
     ld['Score'] = pd.to_numeric(ld['Score'], errors='coerce').fillna(0).astype(int)
@@ -99,7 +100,7 @@ if st.session_state.page == "leaderboard":
     if st.button("🔐 แอดมิน", key="login_btn"):
         st.session_state.page = "login"; st.rerun()
     
-    update_dt = get_weekly_monday_0600_dt()
+    update_dt = get_monday_0600_cutoff() # ใช้ฟังก์ชันใหม่
     players, thai_update_str = load_leaderboard_daily(update_dt)
     
     st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบเทพพัฒวิทย์</h3>", unsafe_allow_html=True)
