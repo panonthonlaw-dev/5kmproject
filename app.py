@@ -55,12 +55,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. ฟังก์ชันจัดการข้อมูล ---
-def get_daily_1800_dt():
+def get_weekly_monday_0600_dt():
     now = datetime.now(thai_tz)
-    cutoff = now.replace(hour=18, minute=0, second=0, microsecond=0)
-    return cutoff if now >= cutoff else cutoff - timedelta(days=1)
-
-@st.cache_data(ttl=None)
+    # weekday() -> 0 คือวันจันทร์, 6 คือวันอาทิตย์
+    days_since_monday = now.weekday() 
+    
+    # หาวันจันทร์ของสัปดาห์นี้ตอน 06:00
+    cutoff = (now - timedelta(days=days_since_monday)).replace(hour=6, minute=0, second=0, microsecond=0)
+    
+    # ถ้าปัจจุบันยังไม่ถึงวันจันทร์ตอน 06:00 (เช่น เป็นวันอาทิตย์ หรือเช้าวันจันทร์ตอนตี 5)
+    # ให้ถอยกลับไปวันจันทร์ของสัปดาห์ก่อนหน้า
+    if now < cutoff:
+        cutoff -= timedelta(days=7)
+        
+    return cutoff
 def load_leaderboard_daily(update_dt):
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(worksheet="Sheet1", ttl="0s")
@@ -91,11 +99,11 @@ if st.session_state.page == "leaderboard":
     if st.button("🔐 แอดมิน", key="login_btn"):
         st.session_state.page = "login"; st.rerun()
     
-    update_dt = get_daily_1800_dt()
+    update_dt = get_weekly_monday_0600_dt()
     players, thai_update_str = load_leaderboard_daily(update_dt)
     
     st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบเทพพัฒวิทย์</h3>", unsafe_allow_html=True)
-    st.markdown(f"<p style='text-align: center; font-size: 0.7rem; color: #888; margin-bottom:5px;'>ข้อมูลล่าสุด (18:00 น.): {thai_update_str}</p>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: center; font-size: 0.7rem; color: #888; margin-bottom:5px;'>อัปเดตทุกเช้าวันจันทร์ (06:00 น.): {thai_update_str}</p>", unsafe_allow_html=True)
     
     grid_h = '<div class="leaderboard-grid">'
     for p in players:
