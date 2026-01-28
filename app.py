@@ -23,18 +23,33 @@ if "logged_in" not in st.session_state:
 thai_tz = pytz.timezone('Asia/Bangkok')
 st.set_page_config(page_title="Patwit System 2026", layout="wide")
 
-# CSS: Super Compact 2026 (รวมปุ่มคฑาชุบชีวิต)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
     
-    /* 1. การตั้งค่าพื้นฐานและขอบจอ (สำคัญมากสำหรับมือถือ) */
+    /* 1. นิยาม Animation ไว้บนสุดเพื่อให้ Browser รู้จักก่อน */
+    @keyframes magic-pulse {
+        0% {
+            transform: scale(0.96);
+            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0.7);
+        }
+        70% {
+            transform: scale(1.02);
+            box-shadow: 0 0 0 12px rgba(167, 119, 227, 0);
+        }
+        100% {
+            transform: scale(0.96);
+            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0);
+        }
+    }
+
+    /* 2. การตั้งค่าพื้นฐานและขอบจอ (สำคัญมากสำหรับมือถือ) */
     [data-testid="block-container"] { padding: 0.3rem 0.1rem !important; max-width: 100vw !important; overflow-x: hidden !important; }
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     * { box-sizing: border-box; }
     html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; width: 100%; overflow-x: hidden; }
 
-    /* 2. ระบบตาราง 5 คอลัมน์แบบยืดหยุ่น */
+    /* 3. ระบบตาราง 5 คอลัมน์แบบยืดหยุ่น */
     .leaderboard-grid { 
         display: grid; 
         grid-template-columns: repeat(5, 1fr) !important; 
@@ -43,14 +58,14 @@ st.markdown("""
         padding: 0 1px;
     }
     
-    /* 3. สไตล์การ์ดผู้เล่นรายบุคคล */
+    /* 4. สไตล์การ์ดผู้เล่นรายบุคคล */
     .player-card { 
         background: white; border-radius: 3px; padding: 3px 1px 1px 1px; border: 0.5px solid #ccc; 
         display: flex; flex-direction: column; gap: 0px; min-height: 0; 
         box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
     }
 
-    /* 4. รายละเอียดตัวหนังสือภายในแอป (ใช้ vw เพื่อให้ยืดหดตามจอมือถือ) */
+    /* 5. รายละเอียดตัวหนังสือภายในแอป (ใช้ vw เพื่อให้ยืดหดตามจอมือถือ) */
     .row-name { display: flex; align-items: center; gap: 1px; font-size: 2.2vw; font-weight: 600; color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
     .player-name-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
     .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 1.9vw; line-height: 1.0; margin-bottom: 1px; }
@@ -59,38 +74,25 @@ st.markdown("""
     .val-exp { color: #555; font-weight: 600; font-size: 2vw; }
     .row-medal { font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; background: #fff3e0; border-radius: 2px; padding: 1px 0; margin-top: 1px; margin-bottom: 0px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* 🪄 สไตล์ปุ่มคฑาชุบชีวิต พร้อมเอฟเฟกต์กระพริบ */
-    .resurrection-btn > div > button {
+    /* 6. 🪄 ปุ่มคฑาชุบชีวิต (เจาะจง Selector สูงสุดเพื่อบังคับกระพริบ) */
+    div.resurrection-btn button {
         background: linear-gradient(135deg, #6e8efb, #a777e3) !important;
         color: white !important;
         border: none !important;
         border-radius: 20px !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
         font-size: 0.85rem !important;
-        box-shadow: 0 4px 12px rgba(167, 119, 227, 0.3) !important;
         margin: 5px 0 !important;
         
-        /* ใส่การตั้งค่าแอนิเมชัน */
-        animation: pulse-purple 2s infinite; 
+        /* บังคับใช้แอนิเมชัน */
+        animation: magic-pulse 2s infinite !important;
+        
+        /* ปรับแต่งเพื่อลบค่าเดิมของ Streamlit */
+        box-shadow: 0 4px 12px rgba(167, 119, 227, 0.3) !important;
+        transition: none !important;
     }
 
-    /* สร้างจังหวะการกระพริบ */
-    @keyframes pulse-purple {
-        0% {
-            transform: scale(0.95);
-            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0.7);
-        }
-        70% {
-            transform: scale(1);
-            box-shadow: 0 0 0 10px rgba(167, 119, 227, 0);
-        }
-        100% {
-            transform: scale(0.95);
-            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0);
-        }
-    }
-
-    /* 6. การปรับแต่งสำหรับหน้าจอคอมพิวเตอร์ (Desktop) */
+    /* 7. การปรับแต่งสำหรับหน้าจอคอมพิวเตอร์ (Desktop) */
     @media (min-width: 1024px) {
         .leaderboard-grid { gap: 10px; padding: 0 20px; }
         .player-card { padding: 8px 10px 4px 10px; min-height: 0; gap: 4px; }
