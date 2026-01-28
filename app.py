@@ -26,80 +26,54 @@ st.set_page_config(page_title="Patwit System 2026", layout="wide")
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
-    
-    /* 1. นิยาม Animation ไว้บนสุดเพื่อให้ Browser รู้จักก่อน */
-    @keyframes magic-pulse {
-        0% {
-            transform: scale(0.96);
-            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0.7);
-        }
-        70% {
-            transform: scale(1.02);
-            box-shadow: 0 0 0 12px rgba(167, 119, 227, 0);
-        }
-        100% {
-            transform: scale(0.96);
-            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0);
-        }
+
+    /* 1. นิยามแอนิเมชัน (แยกออกมาให้ชัดเจนที่สุด) */
+    @keyframes blink-glow {
+        0% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(167, 119, 227, 0.8); }
+        50% { transform: scale(1.05); box-shadow: 0 0 20px 10px rgba(167, 119, 227, 0); }
+        100% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(167, 119, 227, 0); }
     }
 
-    /* 2. การตั้งค่าพื้นฐานและขอบจอ (สำคัญมากสำหรับมือถือ) */
+    /* 2. ตั้งค่าพื้นฐานแอป */
     [data-testid="block-container"] { padding: 0.3rem 0.1rem !important; max-width: 100vw !important; overflow-x: hidden !important; }
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     * { box-sizing: border-box; }
-    html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; width: 100%; overflow-x: hidden; }
+    html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; width: 100%; }
 
-    /* 3. ระบบตาราง 5 คอลัมน์แบบยืดหยุ่น */
-    .leaderboard-grid { 
-        display: grid; 
-        grid-template-columns: repeat(5, 1fr) !important; 
-        gap: 2px; 
-        width: 100%;
-        padding: 0 1px;
-    }
-    
-    /* 4. สไตล์การ์ดผู้เล่นรายบุคคล */
-    .player-card { 
-        background: white; border-radius: 3px; padding: 3px 1px 1px 1px; border: 0.5px solid #ccc; 
-        display: flex; flex-direction: column; gap: 0px; min-height: 0; 
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
-    }
+    /* 3. ตาราง 5 คอลัมน์ */
+    .leaderboard-grid { display: grid; grid-template-columns: repeat(5, 1fr) !important; gap: 2px; width: 100%; padding: 0 1px; }
+    .player-card { background: white; border-radius: 3px; padding: 3px 1px 1px 1px; border: 0.5px solid #ccc; display: flex; flex-direction: column; gap: 0px; min-height: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
-    /* 5. รายละเอียดตัวหนังสือภายในแอป (ใช้ vw เพื่อให้ยืดหดตามจอมือถือ) */
-    .row-name { display: flex; align-items: center; gap: 1px; font-size: 2.2vw; font-weight: 600; color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
-    .player-name-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
-    .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 1.9vw; line-height: 1.0; margin-bottom: 1px; }
-    .label-text { color: #888; font-size: 1.7vw; }
+    /* 4. ตัวหนังสือจิ๋ว (vw) */
+    .row-name { display: flex; align-items: center; gap: 1px; font-size: 2.2vw; font-weight: 600; color: #333; border-bottom: 0.5px solid #eee; }
+    .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 1.9vw; line-height: 1.0; }
     .val-score { color: #1E88E5; font-weight: 800; font-size: 2.4vw; }
     .val-exp { color: #555; font-weight: 600; font-size: 2vw; }
-    .row-medal { font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; background: #fff3e0; border-radius: 2px; padding: 1px 0; margin-top: 1px; margin-bottom: 0px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-medal { font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; background: #fff3e0; border-radius: 2px; }
 
-    /* 6. 🪄 ปุ่มคฑาชุบชีวิต (เจาะจง Selector สูงสุดเพื่อบังคับกระพริบ) */
-    div.resurrection-btn button {
+    /* 5. 🪄 ไม้ตาย: บังคับปุ่มกระพริบ (ใช้ Selector ที่เจาะจงถึงข้างในสุด) */
+    .resurrection-btn button {
         background: linear-gradient(135deg, #6e8efb, #a777e3) !important;
         color: white !important;
         border: none !important;
-        border-radius: 20px !important;
+        border-radius: 25px !important;
         font-weight: 700 !important;
-        font-size: 0.85rem !important;
-        margin: 5px 0 !important;
         
-        /* บังคับใช้แอนิเมชัน */
-        animation: magic-pulse 2s infinite !important;
+        /* สั่งรันแอนิเมชัน */
+        animation: blink-glow 1.5s infinite ease-in-out !important;
         
-        /* ปรับแต่งเพื่อลบค่าเดิมของ Streamlit */
-        box-shadow: 0 4px 12px rgba(167, 119, 227, 0.3) !important;
+        /* ปิดการหน่วงเวลาเดิมของ Streamlit */
         transition: none !important;
+        height: auto !important;
+        padding: 8px 15px !important;
     }
 
-    /* 7. การปรับแต่งสำหรับหน้าจอคอมพิวเตอร์ (Desktop) */
+    /* ปรับแต่งสำหรับ Desktop */
     @media (min-width: 1024px) {
         .leaderboard-grid { gap: 10px; padding: 0 20px; }
-        .player-card { padding: 8px 10px 4px 10px; min-height: 0; gap: 4px; }
         .row-name { font-size: 0.95rem; }
-        .row-stat { font-size: 0.85rem; margin-bottom: 4px; }
+        .row-stat { font-size: 0.85rem; }
         .val-score { font-size: 1.2rem; }
-        .row-medal { font-size: 0.75rem; padding: 3px 0; margin-top: 4px; }
     }
 </style>
 """, unsafe_allow_html=True)
