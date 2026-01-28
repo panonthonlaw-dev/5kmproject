@@ -23,19 +23,34 @@ if "logged_in" not in st.session_state:
 thai_tz = pytz.timezone('Asia/Bangkok')
 st.set_page_config(page_title="Patwit System 2026", layout="wide")
 
-# CSS: Super Compact
+# CSS: Super Compact 2026 (รวมปุ่มคฑาชุบชีวิต)
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap');
+    
+    /* 1. การตั้งค่าพื้นฐานและขอบจอ (สำคัญมากสำหรับมือถือ) */
     [data-testid="block-container"] { padding: 0.3rem 0.1rem !important; max-width: 100vw !important; overflow-x: hidden !important; }
     header, footer, .stAppDeployButton, [data-testid="stHeader"] { visibility: hidden; display: none; }
     * { box-sizing: border-box; }
     html, body { font-family: 'Sarabun', sans-serif; background-color: #f0f2f5; width: 100%; overflow-x: hidden; }
-    .leaderboard-grid { display: grid; grid-template-columns: repeat(5, 1fr) !important; gap: 2px; width: 100%; padding: 0 1px; }
+
+    /* 2. ระบบตาราง 5 คอลัมน์แบบยืดหยุ่น */
+    .leaderboard-grid { 
+        display: grid; 
+        grid-template-columns: repeat(5, 1fr) !important; 
+        gap: 2px; 
+        width: 100%;
+        padding: 0 1px;
+    }
+    
+    /* 3. สไตล์การ์ดผู้เล่นรายบุคคล */
     .player-card { 
         background: white; border-radius: 3px; padding: 3px 1px 1px 1px; border: 0.5px solid #ccc; 
-        display: flex; flex-direction: column; gap: 0px; min-height: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
+        display: flex; flex-direction: column; gap: 0px; min-height: 0; 
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05); width: 100%; overflow: hidden;
     }
+
+    /* 4. รายละเอียดตัวหนังสือภายในแอป (ใช้ vw เพื่อให้ยืดหดตามจอมือถือ) */
     .row-name { display: flex; align-items: center; gap: 1px; font-size: 2.2vw; font-weight: 600; color: #333; border-bottom: 0.5px solid #eee; padding-bottom: 1px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; }
     .player-name-text { overflow: hidden; text-overflow: ellipsis; flex: 1; }
     .row-stat { display: flex; justify-content: space-between; align-items: center; font-size: 1.9vw; line-height: 1.0; margin-bottom: 1px; }
@@ -43,6 +58,24 @@ st.markdown("""
     .val-score { color: #1E88E5; font-weight: 800; font-size: 2.4vw; }
     .val-exp { color: #555; font-weight: 600; font-size: 2vw; }
     .row-medal { font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; background: #fff3e0; border-radius: 2px; padding: 1px 0; margin-top: 1px; margin-bottom: 0px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* 5. 🪄 สไตล์ปุ่มคฑาชุบชีวิต (Magic Resurrection Button) */
+    .resurrection-btn > div > button {
+        background: linear-gradient(135deg, #6e8efb, #a777e3) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 20px !important;
+        font-weight: 600 !important;
+        font-size: 0.85rem !important;
+        box-shadow: 0 4px 12px rgba(167, 119, 227, 0.3) !important;
+        margin: 5px 0 !important;
+        transition: transform 0.2s ease;
+    }
+    .resurrection-btn > div > button:active {
+        transform: scale(0.95);
+    }
+
+    /* 6. การปรับแต่งสำหรับหน้าจอคอมพิวเตอร์ (Desktop) */
     @media (min-width: 1024px) {
         .leaderboard-grid { gap: 10px; padding: 0 20px; }
         .player-card { padding: 8px 10px 4px 10px; min-height: 0; gap: 4px; }
@@ -53,7 +86,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
 # --- 2. ฟังก์ชันจัดการข้อมูล ---
 def get_monday_0600_cutoff():
     now = datetime.now(thai_tz)
@@ -94,6 +126,25 @@ def get_gspread_sh():
         if s_id and len(s_id) < 100: return client.open_by_key(s_id)
         return client.open_by_url(conf.get("url") or s_id)
     except: return None
+@st.dialog("🪄 คฑาชุบชีวิต (Resurrection)")
+def resurrection_event(players_list):
+    st.write("✨ **เหล่าผู้กล้าที่กำลังหลับใหล!**")
+    st.write("ชวนเพื่อนๆ เหล่านี้กลับมาทำภารกิจ รับคะแนนพิเศษทั้งคู่เมื่อเพื่อนเริ่มสแกนแต้มอีกครั้ง")
+    
+    # แปลงข้อมูลกลับเป็น DataFrame เพื่อกรองคนที่มี EXP <= 10
+    df = pd.DataFrame(players_list)
+    inactive_friends = df[df['EXP'] <= 10][['Name', 'EXP']].sort_values('EXP')
+    
+    if inactive_friends.empty:
+        st.success("ว้าว! ทุกคนในระบบแข็งแกร่งกันหมดแล้ว")
+    else:
+        st.markdown("---")
+        for _, row in inactive_friends.iterrows():
+            col1, col2 = st.columns([3, 1])
+            col1.write(f"👤 {row['Name']}")
+            col2.write(f"⭐ {row['EXP']} EXP")
+        st.markdown("---")
+        st.info("💡 **ภารกิจ:** แคปหน้าจอนี้ส่งให้เพื่อน แล้วบอกว่า 'กลับมาเล่นด้วยกันเถอะ!'")
 
 # --- 3. ส่วนควบคุมหน้าจอ ---
 if st.session_state.page == "leaderboard":
@@ -104,6 +155,14 @@ if st.session_state.page == "leaderboard":
     players, thai_update_str = load_leaderboard_daily(update_dt)
     
     st.markdown("<h3 style='text-align: center; color: #1E88E5; margin:0;'>🏆 ทำเนียบเทพพัฒวิทย์</h3>", unsafe_allow_html=True)
+    # ปุ่มคฑาชุบชีวิต (วางใต้หัวข้อ)
+    _, btn_col, _ = st.columns([1, 2, 1])
+    with btn_col:
+        # ใส่คลาส CSS resurrection-btn เพื่อให้ปุ่มสีม่วงสวยงาม
+        st.markdown('<div class="resurrection-btn">', unsafe_allow_html=True)
+        if st.button("🪄 ใช้คฑาชุบชีวิต (ชวนเพื่อนกลับมา)", use_container_width=True):
+            resurrection_event(players)
+        st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(f"<p style='text-align: center; font-size: 0.7rem; color: #888; margin-bottom:5px;'>อัปเดตทุกเช้าวันจันทร์ (06:00 น.): {thai_update_str}</p>", unsafe_allow_html=True)
     
     grid_h = '<div class="leaderboard-grid">'
