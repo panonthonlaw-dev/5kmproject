@@ -59,7 +59,7 @@ st.markdown("""
     .val-exp { color: #555; font-weight: 600; font-size: 2vw; }
     .row-medal { font-size: 1.8vw; color: #ef6c00; font-weight: 600; text-align: center; background: #fff3e0; border-radius: 2px; padding: 1px 0; margin-top: 1px; margin-bottom: 0px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* 5. 🪄 สไตล์ปุ่มคฑาชุบชีวิต (Magic Resurrection Button) */
+    /* 🪄 สไตล์ปุ่มคฑาชุบชีวิต พร้อมเอฟเฟกต์กระพริบ */
     .resurrection-btn > div > button {
         background: linear-gradient(135deg, #6e8efb, #a777e3) !important;
         color: white !important;
@@ -69,10 +69,25 @@ st.markdown("""
         font-size: 0.85rem !important;
         box-shadow: 0 4px 12px rgba(167, 119, 227, 0.3) !important;
         margin: 5px 0 !important;
-        transition: transform 0.2s ease;
+        
+        /* ใส่การตั้งค่าแอนิเมชัน */
+        animation: pulse-purple 2s infinite; 
     }
-    .resurrection-btn > div > button:active {
-        transform: scale(0.95);
+
+    /* สร้างจังหวะการกระพริบ */
+    @keyframes pulse-purple {
+        0% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0.7);
+        }
+        70% {
+            transform: scale(1);
+            box-shadow: 0 0 0 10px rgba(167, 119, 227, 0);
+        }
+        100% {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(167, 119, 227, 0);
+        }
     }
 
     /* 6. การปรับแต่งสำหรับหน้าจอคอมพิวเตอร์ (Desktop) */
